@@ -5,22 +5,23 @@ import { useChat } from "@ai-sdk/react";
 import type { Message } from "@ai-sdk/react";
 import { motion, AnimatePresence } from "motion/react";
 
-interface ChatWidgetProps {
+export interface ChatWidgetProps {
   isOpen?: boolean;
   onClose?: () => void;
   isEmbedded?: boolean;
+  initialQuestion?: string;
+  onOpen?: () => void;
 }
 
 const DEFAULT_SUGGESTIONS = [
   "Compare OPT-400 vs OPT-450",
   "Lead time on SPEC-8820-X?",
-  "Price & specs for MOD-770",
-  "Check stock status for ISO-900",
+  "Price and specs for MOD-770",
+  "Cheapest optic in catalog?",
 ];
 
 const TOKEN_REGEX = /(\[[A-Z0-9-]+\]|\b[A-Z]{2,5}-\d{3,4}(?:-[A-Z0-9]+)?\b|\$[\d,]+(?:\.\d{2})?)/g;
 
-// Helper to parse message text into rich SKU chips and mono prices
 function FormattedMessageContent({ text }: { text: string }) {
   const parts = useMemo(() => {
     const regex = new RegExp(TOKEN_REGEX);
@@ -52,16 +53,15 @@ function FormattedMessageContent({ text }: { text: string }) {
   }, [text]);
 
   return (
-    <div className="whitespace-pre-wrap leading-relaxed break-words">
+    <div className="whitespace-pre-wrap leading-relaxed break-words text-xs sm:text-sm">
       {parts.map((part, i) => {
         if (part.type === "sku") {
           return (
             <span
               key={i}
-              className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold tracking-wider px-1.5 py-0.5 mx-0.5 border border-[var(--rule-bold)] bg-[var(--bg-subtle)] text-[#FF4D1F] select-all uppercase rounded-none transition-colors hover:border-[#FF4D1F]"
-              title={`Indexed SKU: ${part.value}`}
+              className="inline-flex items-center font-mono text-[11px] font-semibold px-1.5 py-0.5 mx-0.5 bg-neutral-100 dark:bg-neutral-800 text-[#FF4D1F] border border-neutral-200 dark:border-neutral-700 rounded select-all"
+              title={`Catalog SKU: ${part.value}`}
             >
-              <span className="w-1 h-1 bg-[#FF4D1F] inline-block" />
               {part.value}
             </span>
           );
@@ -70,7 +70,7 @@ function FormattedMessageContent({ text }: { text: string }) {
           return (
             <span
               key={i}
-              className="font-mono font-bold text-[var(--ink-primary)] px-0.5 underline decoration-[#FF4D1F]/50 underline-offset-2"
+              className="font-mono font-bold text-[var(--ink-primary)] px-0.5"
             >
               {part.value}
             </span>
@@ -84,8 +84,10 @@ function FormattedMessageContent({ text }: { text: string }) {
 
 export function ChatWidget({
   isOpen: controlledIsOpen,
+  onOpen: controlledOnOpen,
   onClose: controlledOnClose,
   isEmbedded = false,
+  initialQuestion,
 }: ChatWidgetProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalOpen;
@@ -99,21 +101,26 @@ export function ChatWidget({
   };
 
   const handleOpen = () => {
-    setInternalOpen(true);
+    if (controlledOnOpen) {
+      controlledOnOpen();
+    } else {
+      setInternalOpen(true);
+    }
   };
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Initial welcome message from the verified catalog agent
+  // Clean, professional initial message
   const initialMessages: Message[] = useMemo(
     () => [
       {
         id: "msg-init",
         role: "assistant",
-        content: `CATALOG QUERY BAY [LAYER 03 / DETERMINISTIC]\n\nI am the catalog intelligence system for INDEX. I answer customer queries regarding pricing, lead times, optical tolerances, and cross-SKU comparisons strictly from your verified PIM/ERP database. Ask me anything about our hardware index.`,
+        content:
+          "Hello. I am the INDEX Catalog Assistant. You can ask me for verified specifications, real-time pricing, stock availability, or direct product comparisons.",
       },
     ],
     []
@@ -127,18 +134,37 @@ export function ChatWidget({
     isLoading,
     append,
     setMessages,
+    error,
   } = useChat({
     id: "index-catalog-session",
     api: "/api/chat",
     initialMessages,
   });
 
+  // Handle external prefilled question
+  useEffect(() => {
+    if (initialQuestion && isOpen) {
+      append({
+        role: "user",
+        content: initialQuestion,
+      });
+    }
+  }, [initialQuestion, isOpen, append]);
+
+  // Launcher tooltip after 4s
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowTooltip(true);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Auto-resize textarea
   const adjustTextareaHeight = useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, 110)}px`;
   }, []);
 
   useEffect(() => {
@@ -152,7 +178,6 @@ export function ChatWidget({
         top: scrollContainerRef.current.scrollHeight,
         behavior: smooth ? "smooth" : "auto",
       });
-      setShowScrollBottom(false);
     }
   }, []);
 
@@ -160,22 +185,12 @@ export function ChatWidget({
     scrollToBottom(true);
   }, [messages, scrollToBottom]);
 
-  // Monitor scroll for "Scroll to bottom" pill
-  const handleScroll = () => {
-    if (!scrollContainerRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-    const isUp = scrollHeight - scrollTop - clientHeight > 100;
-    setShowScrollBottom(isUp);
-  };
-
-  // Copy helper
   const copyMessage = (id: string, text: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // Suggestion click
   const handleSuggestionClick = (query: string) => {
     append({
       role: "user",
@@ -183,7 +198,6 @@ export function ChatWidget({
     });
   };
 
-  // Keyboard send handler
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -193,7 +207,6 @@ export function ChatWidget({
     }
   };
 
-  // Helper to extract text from parts or content as requested by prompt
   const getMessageContent = (m: Message): string => {
     if (m.parts && m.parts.length > 0) {
       return m.parts
@@ -204,10 +217,193 @@ export function ChatWidget({
     return m.content || "";
   };
 
+  // Render Widget Content inside Embed View or Modal
+  function renderWidgetContent() {
+    return (
+      <div className="flex flex-col h-full bg-[var(--bg-canvas)] text-[var(--ink-primary)]">
+        {/* Simple & Clean Header */}
+        <div className="shrink-0 h-14 border-b border-[var(--rule-hairline)] bg-[var(--bg-surface)] px-4 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600" />
+            </span>
+            <div className="flex flex-col">
+              <span className="font-semibold text-xs tracking-tight text-[var(--ink-primary)]">
+                Catalog Assistant
+              </span>
+              <span className="text-[10px] text-[var(--ink-tertiary)]">
+                Live Verified Knowledge
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setMessages(initialMessages)}
+              type="button"
+              title="Reset conversation"
+              className="px-2.5 py-1 text-[11px] text-[var(--ink-tertiary)] hover:text-[var(--ink-primary)] rounded hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
+            >
+              Reset
+            </button>
+            {!isEmbedded && (
+              <button
+                onClick={handleClose}
+                type="button"
+                aria-label="Close assistant"
+                className="w-8 h-8 flex items-center justify-center text-[var(--ink-secondary)] hover:text-[var(--ink-primary)] rounded-full hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Live Message History with data-lenis-prevent */}
+        <div
+          ref={scrollContainerRef}
+          data-lenis-prevent
+          role="log"
+          aria-live="polite"
+          className="flex-1 overflow-y-auto p-4 space-y-3.5 relative"
+        >
+          {messages.map((m) => {
+            const isUser = m.role === "user";
+            const textContent = getMessageContent(m);
+
+            return (
+              <div
+                key={m.id}
+                className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}
+              >
+                <div
+                  className={`relative max-w-[86%] p-3.5 rounded-2xl transition-all ${
+                    isUser
+                      ? "bg-[var(--ink-primary)] text-[var(--bg-canvas)] rounded-br-xs"
+                      : "bg-[var(--bg-surface)] border border-[var(--rule-hairline)] text-[var(--ink-primary)] rounded-bl-xs shadow-xs"
+                  }`}
+                >
+                  <FormattedMessageContent text={textContent} />
+
+                  {/* Discrete Copy Button for Assistant */}
+                  {!isUser && m.id !== "msg-init" && (
+                    <div className="mt-2 pt-1 border-t border-[var(--rule-hairline)] flex items-center justify-end">
+                      <button
+                        onClick={() => copyMessage(m.id, textContent)}
+                        type="button"
+                        className="text-[10px] text-[var(--ink-tertiary)] hover:text-[var(--ink-primary)] flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        {copiedId === m.id ? (
+                          <span className="text-emerald-600 font-medium">✓ Copied</span>
+                        ) : (
+                          <span>Copy</span>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* 3-Dot Minimal Wave Loading Indicator */}
+          {isLoading && messages[messages.length - 1]?.role === "user" && (
+            <div className="flex flex-col items-start">
+              <div className="flex items-center gap-1.5 px-3.5 py-2.5 bg-[var(--bg-surface)] border border-[var(--rule-hairline)] rounded-2xl rounded-bl-xs shadow-xs">
+                <span className="w-1.5 h-1.5 bg-[#FF4D1F] rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-1.5 h-1.5 bg-[#FF4D1F] rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-1.5 h-1.5 bg-[#FF4D1F] rounded-full animate-bounce" />
+              </div>
+            </div>
+          )}
+
+          {/* Friendly Error Banner */}
+          {error && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-600 dark:text-red-400">
+              Unable to complete request. Please check connection or retry.
+            </div>
+          )}
+        </div>
+
+        {/* Suggestion Chips */}
+        {messages.length <= 2 && (
+          <div className="px-3 py-2 border-t border-[var(--rule-hairline)] bg-[var(--bg-canvas)] overflow-x-auto flex gap-1.5 no-scrollbar">
+            {DEFAULT_SUGGESTIONS.map((suggestion, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleSuggestionClick(suggestion)}
+                className="whitespace-nowrap shrink-0 text-[11px] px-3 py-1 bg-[var(--bg-surface)] border border-[var(--rule-hairline)] text-[var(--ink-secondary)] hover:text-[var(--ink-primary)] hover:border-[var(--ink-primary)] rounded-full transition-colors cursor-pointer"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Minimal Input Bar */}
+        <div className="shrink-0 border-t border-[var(--rule-hairline)] bg-[var(--bg-surface)] p-3">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (input.trim() && !isLoading) {
+                handleSubmit(e);
+              }
+            }}
+            className="flex items-end gap-2"
+          >
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              value={input}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask about SKU, specs, pricing..."
+              className="flex-1 max-h-24 resize-none bg-[var(--bg-canvas)] border border-[var(--rule-hairline)] text-[var(--ink-primary)] placeholder:text-[var(--ink-tertiary)] text-xs rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-[#FF4D1F] transition-colors leading-relaxed"
+            />
+            <button
+              type="submit"
+              disabled={!input.trim() || isLoading}
+              aria-label="Send message"
+              className="shrink-0 w-9 h-9 bg-[var(--ink-primary)] text-[var(--bg-canvas)] hover:bg-[#FF4D1F] hover:text-white disabled:opacity-25 disabled:pointer-events-none rounded-xl transition-colors flex items-center justify-center cursor-pointer"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   // Embedded view container (used in /embed)
   if (isEmbedded) {
     return (
-      <div className="w-full h-screen max-h-screen flex flex-col bg-[var(--bg-canvas)] text-[var(--ink-primary)] border border-[var(--rule-hairline)] overflow-hidden font-sans">
+      <div className="w-full h-screen max-h-screen border border-[var(--rule-hairline)] overflow-hidden font-sans">
         {renderWidgetContent()}
       </div>
     );
@@ -218,31 +414,59 @@ export function ChatWidget({
       {/* Floating Launcher Button */}
       <AnimatePresence>
         {!isOpen && (
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.8, opacity: 0, y: 20 }}
-            transition={{ type: "spring", stiffness: 450, damping: 30 }}
-            className="fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-50"
-          >
-            <button
+          <div className="fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-50 flex items-center gap-3">
+            {showTooltip && (
+              <motion.div
+                initial={{ opacity: 0, x: 10, scale: 0.95 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-surface)] text-[var(--ink-primary)] border border-[var(--rule-hairline)] shadow-lg rounded-full text-xs font-medium cursor-pointer"
+                onClick={handleOpen}
+              >
+                <span>Ask about any product</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowTooltip(false);
+                  }}
+                  className="opacity-50 hover:opacity-100 text-[10px]"
+                >
+                  ✕
+                </button>
+              </motion.div>
+            )}
+
+            <motion.button
               onClick={handleOpen}
               type="button"
-              aria-label="Open catalog intelligence terminal"
-              className="group relative flex items-center gap-3 px-4 py-3 bg-[var(--ink-primary)] text-[var(--bg-canvas)] border border-[var(--rule-bold)] shadow-2xl hover:bg-[#FF4D1F] hover:text-white transition-colors duration-200 cursor-pointer"
+              aria-label="Open product catalog assistant"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 400, damping: 25 }}
+              className="flex items-center gap-2.5 px-4 py-3 bg-[var(--ink-primary)] text-[var(--bg-canvas)] shadow-xl hover:bg-[#FF4D1F] hover:text-white transition-colors duration-200 rounded-full cursor-pointer"
             >
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FF4D1F] opacity-75 group-hover:bg-white" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#FF4D1F] group-hover:bg-white" />
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="shrink-0"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              <span className="text-xs font-medium tracking-wide">
+                Chat with Catalog
               </span>
-              <span className="font-mono text-xs font-semibold tracking-wider uppercase">
-                QUERY CATALOG
-              </span>
-              <span className="text-[10px] font-mono opacity-60 border-l border-white/20 pl-2">
-                18ms
-              </span>
-            </button>
-          </motion.div>
+            </motion.button>
+          </div>
         )}
       </AnimatePresence>
 
@@ -256,17 +480,16 @@ export function ChatWidget({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={handleClose}
-              className="fixed inset-0 bg-black/40 backdrop-blur-xs sm:hidden pointer-events-auto"
+              className="absolute inset-0 bg-black/30 backdrop-blur-xs sm:hidden pointer-events-auto"
             />
 
             {/* Main Window */}
             <motion.div
-              layoutId="catalog-chat-window"
-              initial={{ opacity: 0, scale: 0.92, y: 40, transformOrigin: "bottom right" }}
+              initial={{ opacity: 0, scale: 0.94, y: 25 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.92, y: 40 }}
-              transition={{ type: "spring", stiffness: 380, damping: 32 }}
-              className="pointer-events-auto w-full h-[100dvh] sm:h-[680px] sm:max-h-[85vh] sm:w-[480px] flex flex-col bg-[var(--bg-canvas)] border border-[var(--rule-bold)] shadow-2xl overflow-hidden font-sans"
+              exit={{ opacity: 0, scale: 0.94, y: 25 }}
+              transition={{ type: "spring", stiffness: 380, damping: 30 }}
+              className="relative z-10 pointer-events-auto w-full h-[100dvh] sm:h-[600px] sm:max-h-[85vh] sm:w-[410px] sm:rounded-2xl flex flex-col bg-[var(--bg-canvas)] border border-[var(--rule-bold)] shadow-2xl overflow-hidden font-sans"
             >
               {renderWidgetContent()}
             </motion.div>
@@ -275,199 +498,4 @@ export function ChatWidget({
       </AnimatePresence>
     </>
   );
-
-  function renderWidgetContent() {
-    return (
-      <>
-        {/* Header Bar */}
-        <div className="shrink-0 h-14 border-b border-[var(--rule-hairline)] bg-[var(--bg-surface)] px-4 flex items-center justify-between font-mono text-xs">
-          <div className="flex items-center gap-2.5">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600" />
-            </span>
-            <div className="flex flex-col">
-              <span className="font-bold tracking-wider text-[var(--ink-primary)] uppercase text-[11px]">
-                CATALOG QUERY BAY
-              </span>
-              <span className="text-[10px] text-[var(--ink-tertiary)] tracking-widest uppercase">
-                HARD-SCHEMA GATE / 0.00% DRIFT
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setMessages(initialMessages)}
-              type="button"
-              title="Reset terminal session"
-              className="px-2 py-1 border border-[var(--rule-hairline)] text-[var(--ink-tertiary)] hover:text-[var(--ink-primary)] hover:border-[var(--ink-primary)] text-[10px] tracking-wider uppercase transition-colors"
-            >
-              CLEAR
-            </button>
-            {!isEmbedded && (
-              <button
-                onClick={handleClose}
-                type="button"
-                aria-label="Close chat window"
-                className="w-7 h-7 flex items-center justify-center border border-[var(--rule-hairline)] hover:border-[#FF4D1F] hover:text-[#FF4D1F] text-[var(--ink-primary)] transition-colors cursor-pointer"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Live Message History */}
-        <div
-          ref={scrollContainerRef}
-          onScroll={handleScroll}
-          aria-live="polite"
-          className="flex-1 overflow-y-auto p-4 space-y-4 text-xs font-sans relative"
-        >
-          {messages.map((m) => {
-            const isUser = m.role === "user";
-            const textContent = getMessageContent(m);
-            const isOutOfCatalog =
-              !isUser && textContent.includes("CATALOG BOUNDARY: ITEM NOT FOUND");
-            const isGuardrailRejected =
-              !isUser && textContent.includes("GUARDRAIL INTERVENTION");
-
-            return (
-              <div
-                key={m.id}
-                className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}
-              >
-                {/* Meta indicator */}
-                <div className="flex items-center gap-2 mb-1 text-[10px] font-mono uppercase text-[var(--ink-tertiary)]">
-                  <span>{isUser ? "QUERY SOURCE" : "DETERMINISTIC RETRIEVAL"}</span>
-                  <span>•</span>
-                  <span>{isUser ? "OPERATOR" : "LAYER 03"}</span>
-                </div>
-
-                {/* Message bubble */}
-                <div
-                  className={`relative max-w-[92%] sm:max-w-[88%] p-3.5 border transition-all ${
-                    isUser
-                      ? "bg-[var(--ink-primary)] text-[var(--bg-canvas)] border-[var(--ink-primary)]"
-                      : isOutOfCatalog
-                      ? "bg-amber-500/10 border-amber-600/40 text-[var(--ink-primary)]"
-                      : isGuardrailRejected
-                      ? "bg-red-500/10 border-red-600/40 text-[var(--ink-primary)]"
-                      : "bg-[var(--bg-surface)] border-[var(--rule-hairline)] text-[var(--ink-primary)]"
-                  }`}
-                >
-                  <FormattedMessageContent text={textContent} />
-
-                  {/* Streaming Soft Caret */}
-                  {!isUser &&
-                    isLoading &&
-                    m.id === messages[messages.length - 1]?.id && (
-                      <span className="inline-block w-1.5 h-3.5 bg-[#FF4D1F] ml-1 animate-pulse align-middle" />
-                    )}
-
-                  {/* Copy Button for Assistant */}
-                  {!isUser && (
-                    <div className="mt-3 pt-2 border-t border-[var(--rule-hairline)] flex items-center justify-between text-[10px] font-mono text-[var(--ink-tertiary)]">
-                      <span className="tracking-widest uppercase">VERIFIED ENTITY</span>
-                      <button
-                        onClick={() => copyMessage(m.id, textContent)}
-                        type="button"
-                        className="hover:text-[var(--ink-primary)] flex items-center gap-1 transition-colors uppercase tracking-wider"
-                      >
-                        {copiedId === m.id ? (
-                          <span className="text-[#15803D] dark:text-[#22C55E] font-bold">
-                            ✓ COPIED
-                          </span>
-                        ) : (
-                          <span>COPY SPECS</span>
-                        )}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          {/* 3-Dot Wave Loading Indicator */}
-          {isLoading &&
-            messages[messages.length - 1]?.role === "user" && (
-              <div className="flex flex-col items-start">
-                <div className="flex items-center gap-1.5 px-3 py-2 bg-[var(--bg-surface)] border border-[var(--rule-hairline)]">
-                  <span className="w-1.5 h-1.5 bg-[#FF4D1F] rounded-full animate-bounce [animation-delay:-0.3s]" />
-                  <span className="w-1.5 h-1.5 bg-[#FF4D1F] rounded-full animate-bounce [animation-delay:-0.15s]" />
-                  <span className="w-1.5 h-1.5 bg-[#FF4D1F] rounded-full animate-bounce" />
-                  <span className="ml-2 font-mono text-[10px] text-[var(--ink-tertiary)] tracking-widest uppercase">
-                    SCANNING INDEX...
-                  </span>
-                </div>
-              </div>
-            )}
-        </div>
-
-        {/* Scroll-to-bottom floating pill */}
-        <AnimatePresence>
-          {showScrollBottom && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              className="absolute bottom-36 left-1/2 -translate-x-1/2 z-10"
-            >
-              <button
-                onClick={() => scrollToBottom(true)}
-                type="button"
-                className="px-3 py-1 bg-[var(--ink-primary)] text-[var(--bg-canvas)] border border-[var(--rule-bold)] shadow-md text-[10px] font-mono tracking-wider uppercase flex items-center gap-1.5 hover:bg-[#FF4D1F] transition-colors"
-              >
-                <span>↓ LATEST CHUNKS</span>
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Suggestion Chips */}
-        <div className="shrink-0 px-3 py-2 border-t border-[var(--rule-hairline)] bg-[var(--bg-canvas)] overflow-x-auto flex items-center gap-1.5 scrollbar-none">
-          {DEFAULT_SUGGESTIONS.map((sug, i) => (
-            <button
-              key={i}
-              onClick={() => handleSuggestionClick(sug)}
-              type="button"
-              disabled={isLoading}
-              className="shrink-0 px-2.5 py-1 text-[11px] font-mono border border-[var(--rule-hairline)] bg-[var(--bg-surface)] hover:border-[#FF4D1F] hover:text-[#FF4D1F] text-[var(--ink-secondary)] transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50"
-            >
-              {sug}
-            </button>
-          ))}
-        </div>
-
-        {/* Input Bar */}
-        <div className="shrink-0 p-3 sm:p-4 border-t border-[var(--rule-hairline)] bg-[var(--bg-surface)] pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
-          <form onSubmit={handleSubmit} className="relative flex items-end gap-2">
-            <textarea
-              ref={textareaRef}
-              rows={1}
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask specifications, SKU tolerances, comparisons..."
-              disabled={isLoading}
-              className="flex-1 bg-[var(--bg-canvas)] border border-[var(--rule-bold)] text-[var(--ink-primary)] placeholder-[var(--ink-tertiary)] p-2.5 text-xs font-mono focus:border-[#FF4D1F] focus:outline-none resize-none leading-normal min-h-[42px] max-h-[120px]"
-            />
-            <button
-              type="submit"
-              disabled={!input.trim() || isLoading}
-              className="h-[42px] px-4 bg-[var(--ink-primary)] text-[var(--bg-canvas)] font-mono text-xs font-bold uppercase tracking-wider hover:bg-[#FF4D1F] hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center shrink-0 cursor-pointer"
-            >
-              SEND
-            </button>
-          </form>
-          <div className="mt-1.5 flex items-center justify-between text-[10px] font-mono text-[var(--ink-tertiary)]">
-            <span>PRESS ENTER TO TRANSMIT • SHIFT+ENTER FOR LINE</span>
-            <span className="hidden sm:inline">INDEX v4.2 DETERMINISTIC</span>
-          </div>
-        </div>
-      </>
-    );
-  }
 }

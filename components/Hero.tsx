@@ -1,277 +1,286 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { motion, useReducedMotion } from "motion/react";
-import { queryCatalogDeterministic } from "@/lib/catalog-data";
+import { gsap, SplitText, useGSAP } from "@/lib/gsap";
 
 interface HeroProps {
   onOpenTerminal?: () => void;
 }
 
 const HERO_SUGGESTIONS = [
-  "Lead time on SPEC-8820-X?",
-  "Compare OPT-400 vs OPT-450",
-  "Is ISO-900 in stock today?",
+  {
+    q: "Lead time on SPEC-8820-X?",
+    a: "SPEC-8820-X (Chronos Goniometer) is $1,840.00 with Same-day dispatch. It features 0.001 mrad resolution and ±0.002° tolerance.",
+  },
+  {
+    q: "Compare OPT-400 vs OPT-450",
+    a: "Price difference is 660.00 USD. OPT-400 is $2,190.00 (400mm, Standard C-mount), while OPT-450 PRO is $2,850.00 (450mm, Universal C/F-mount with same-day dispatch).",
+  },
+  {
+    q: "What is your cheapest optic?",
+    a: "Lowest priced product in the catalog is the UV Fused Silica Lens (SKU: LNS-250) at $145.00 with same-day dispatch.",
+  },
 ];
 
 export function Hero({ onOpenTerminal }: HeroProps) {
-  const shouldReduceMotion = useReducedMotion();
-  const [activeQuery, setActiveQuery] = useState(HERO_SUGGESTIONS[0]);
-  const [displayedAnswer, setDisplayedAnswer] = useState(
-    queryCatalogDeterministic(HERO_SUGGESTIONS[0])
+  const containerRef = useRef<HTMLElement>(null);
+  const headlineRef = useRef<HTMLHeadingElement>(null);
+  const decorRef = useRef<HTMLDivElement>(null);
+  const chatCardRef = useRef<HTMLDivElement>(null);
+  const magneticBtnRef = useRef<HTMLButtonElement>(null);
+
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  useGSAP(
+    () => {
+      if (!containerRef.current) return;
+
+      const mm = gsap.matchMedia();
+
+      mm.add("(prefers-reduced-motion: reduce)", () => {
+        // Reduced motion: show final state immediately
+        gsap.set([headlineRef.current, chatCardRef.current, decorRef.current], {
+          autoAlpha: 1,
+          y: 0,
+        });
+        if (typeof window !== "undefined") {
+          (window as unknown as { __motionReady?: boolean }).__motionReady = true;
+        }
+      });
+
+      mm.add("(prefers-reduced-motion: no-preference)", () => {
+        const tl = gsap.timeline({
+          defaults: { ease: "power3.out" },
+          onComplete: () => {
+            if (typeof window !== "undefined") {
+              (window as unknown as { __motionReady?: boolean }).__motionReady = true;
+            }
+          },
+        });
+
+        // 1. SplitText headline masked reveal
+        if (headlineRef.current) {
+          const split = new SplitText(headlineRef.current, {
+            type: "lines",
+            linesClass: "line-wrapper overflow-hidden",
+          });
+
+          // Re-split after web fonts load
+          if (typeof document !== "undefined" && document.fonts) {
+            document.fonts.ready.then(() => {
+              split.split({ type: "lines", linesClass: "line-wrapper overflow-hidden" });
+            });
+          }
+
+          tl.from(split.lines, {
+            yPercent: 110,
+            autoAlpha: 0,
+            duration: 0.85,
+            stagger: 0.08,
+          });
+        }
+
+        // 2. Chat card rise
+        if (chatCardRef.current) {
+          tl.from(
+            chatCardRef.current,
+            {
+              y: 50,
+              autoAlpha: 0,
+              duration: 0.8,
+            },
+            "-=0.5"
+          );
+        }
+
+        // 3. Parallax on hero decor elements
+        if (decorRef.current) {
+          gsap.to(decorRef.current, {
+            y: -50,
+            ease: "none",
+            scrollTrigger: {
+              trigger: containerRef.current,
+              start: "top top",
+              end: "bottom top",
+              scrub: 0.6,
+            },
+          });
+        }
+      });
+
+      // Pointer-fine subtle card tilt and magnetic button using gsap.quickTo
+      mm.add("(pointer: fine)", () => {
+        if (magneticBtnRef.current) {
+          const btn = magneticBtnRef.current;
+          const xTo = gsap.quickTo(btn, "x", { duration: 0.3, ease: "power2.out" });
+          const yTo = gsap.quickTo(btn, "y", { duration: 0.3, ease: "power2.out" });
+
+          const onMouseMove = (e: MouseEvent) => {
+            const rect = btn.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            xTo((e.clientX - cx) * 0.25);
+            yTo((e.clientY - cy) * 0.25);
+          };
+
+          const onMouseLeave = () => {
+            xTo(0);
+            yTo(0);
+          };
+
+          btn.addEventListener("mousemove", onMouseMove);
+          btn.addEventListener("mouseleave", onMouseLeave);
+
+          return () => {
+            btn.removeEventListener("mousemove", onMouseMove);
+            btn.removeEventListener("mouseleave", onMouseLeave);
+          };
+        }
+      });
+    },
+    { scope: containerRef }
   );
-  const [isTyping, setIsTyping] = useState(false);
-
-  // Magnetic button effect
-  const buttonRef = useRef<HTMLAnchorElement>(null);
-  const [buttonOffset, setButtonOffset] = useState({ x: 0, y: 0 });
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (shouldReduceMotion) return;
-    const btn = buttonRef.current;
-    if (!btn) return;
-    const rect = btn.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    const distanceX = (e.clientX - centerX) * 0.25;
-    const distanceY = (e.clientY - centerY) * 0.25;
-    setButtonOffset({ x: distanceX, y: distanceY });
-  };
-
-  const handleMouseLeave = () => {
-    setButtonOffset({ x: 0, y: 0 });
-  };
-
-  const handleChipSelect = (query: string) => {
-    setActiveQuery(query);
-    setIsTyping(true);
-    setTimeout(() => {
-      setDisplayedAnswer(queryCatalogDeterministic(query));
-      setIsTyping(false);
-    }, 280);
-  };
-
-  const headlineWords = [
-    { text: "Ask", isSerif: false },
-    { text: "your", isSerif: false },
-    { text: "catalog", isSerif: true },
-    { text: "anything.", isSerif: false },
-  ];
 
   return (
     <section
       id="hero"
-      className="relative min-h-[92vh] border-b border-[var(--rule-hairline)] flex flex-col justify-between pt-8 sm:pt-14 pb-12 overflow-hidden"
+      ref={containerRef}
+      className="relative min-h-[88vh] border-b border-[var(--rule-hairline)] flex flex-col justify-between pt-8 sm:pt-12 pb-12 overflow-hidden bg-[var(--bg-canvas)]"
     >
-      {/* Top Instrument Coordinates Bar */}
+      {/* Background Decor Parallax Elements */}
+      <div
+        ref={decorRef}
+        aria-hidden="true"
+        className="absolute top-10 right-10 pointer-events-none opacity-20 hidden lg:block"
+      >
+        <div className="w-96 h-96 rounded-full border border-[var(--rule-bold)] flex items-center justify-center">
+          <div className="w-64 h-64 rounded-full border border-dashed border-[var(--rule-bold)]" />
+        </div>
+      </div>
+
+      {/* Top Coordinate Readout Bar */}
       <div className="max-w-[1920px] mx-auto w-full px-4 sm:px-6 md:px-10 mb-8 sm:mb-12">
         <div className="flex flex-wrap items-center justify-between gap-4 text-[11px] font-mono text-[var(--ink-tertiary)] border-b border-[var(--rule-hairline)] pb-3">
           <div className="flex items-center gap-3">
             <span className="w-1.5 h-1.5 bg-[#FF4D1F]" />
             <span className="uppercase tracking-widest">
-              SYSTEM STANDARD: SWISS EDITORIAL / DETERMINISTIC 4.2
+              SYSTEM ARCHITECTURE: GROUNDED PRODUCT INTELLIGENCE
             </span>
           </div>
           <div className="hidden sm:flex items-center gap-6">
-            <span>SPEC: ISO 17025 HARMONIZED</span>
-            <span>GRID: 12-COL ASYMMETRIC</span>
-            <span className="text-[var(--ink-primary)]">ERROR DRIFT: ZERO</span>
+            <span>SPEC: ISO 17025 COMPLIANT</span>
+            <span>CATALOG RETRIEVAL: REAL-TIME</span>
+            <span className="text-[var(--ink-primary)] font-semibold">HALLUCINATION: 0.00%</span>
           </div>
         </div>
       </div>
 
-      {/* Main Hero Grid */}
+      {/* Main Hero Content Grid */}
       <div className="max-w-[1920px] mx-auto w-full px-4 sm:px-6 md:px-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-        {/* Left Column: Kinetic Headline & Magnetic Action */}
+        {/* Left Column: Headline & Value Proposition */}
         <div className="lg:col-span-7 flex flex-col justify-center">
           <div className="mb-4 inline-flex items-center gap-2 text-xs font-mono tracking-widest uppercase text-[#FF4D1F]">
             <span className="w-3 h-[1px] bg-[#FF4D1F]" />
-            <span>GROUNDED PRODUCT INTELLIGENCE</span>
+            <span>PRECISION OPTICS & METROLOGY</span>
           </div>
 
-          {/* Kinetic Mask Reveal Headline */}
-          <h1 className="text-[clamp(3.2rem,8.2vw,8.5rem)] leading-[0.9] tracking-[-0.04em] font-bold text-[var(--ink-primary)] mb-6 sm:mb-8">
-            {headlineWords.map((word, i) => (
-              <span
-                key={i}
-                className="inline-block overflow-hidden mr-[0.22em] align-top"
-              >
-                <motion.span
-                  initial={
-                    shouldReduceMotion
-                      ? { opacity: 1, y: 0 }
-                      : { y: "115%", opacity: 0 }
-                  }
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{
-                    duration: 0.85,
-                    delay: 0.12 * i,
-                    ease: [0.22, 1, 0.36, 1],
-                  }}
-                  className={`inline-block ${
-                    word.isSerif
-                      ? "font-serif italic font-normal tracking-normal text-[#FF4D1F]"
-                      : "font-sans font-extrabold"
-                  }`}
-                >
-                  {word.text}
-                </motion.span>
-              </span>
-            ))}
+          <h1
+            ref={headlineRef}
+            className="text-[clamp(2.8rem,7.5vw,7.8rem)] leading-[0.92] tracking-[-0.04em] font-bold text-[var(--ink-primary)] mb-6 sm:mb-8 font-sans"
+          >
+            Ask your catalog{" "}
+            <span className="font-serif italic font-normal text-[#FF4D1F]">
+              anything.
+            </span>
           </h1>
 
-          <p className="max-w-2xl text-base sm:text-xl text-[var(--ink-secondary)] leading-relaxed font-sans mb-8 sm:mb-10 font-normal">
-            No hallucinations. No generic fluff. INDEX binds strictly to your
-            master catalog to answer complex technical specifications, live
-            pricing tiers, dimensional tolerances, and multi-SKU comparisons in
-            sub-20ms.
+          <p className="text-base sm:text-lg text-[var(--ink-secondary)] leading-relaxed max-w-2xl mb-8 font-sans">
+            INDEX transforms enterprise spreadsheets and complex technical catalogs into a
+            conversational AI that quotes verified prices, exact part numbers, and real-time tolerances with zero hallucination.
           </p>
 
-          {/* CTAs */}
-          <div className="flex flex-wrap items-center gap-4 sm:gap-6 font-mono text-xs">
-            <motion.a
-              ref={buttonRef}
-              href="#problem-answer"
-              onMouseMove={handleMouseMove}
-              onMouseLeave={handleMouseLeave}
-              animate={{ x: buttonOffset.x, y: buttonOffset.y }}
-              transition={{ type: "spring", stiffness: 350, damping: 20 }}
-              className="px-7 py-4 bg-[#FF4D1F] text-white font-sans font-semibold text-sm sm:text-base tracking-tight hover:bg-[var(--ink-primary)] transition-colors duration-200 shadow-xl flex items-center gap-3 cursor-pointer select-none"
-            >
-              <span>SEE THE TRANSFORMATION</span>
-              <span className="font-mono text-xs">→</span>
-            </motion.a>
-
+          <div className="flex flex-wrap items-center gap-4">
             <button
+              ref={magneticBtnRef}
               onClick={onOpenTerminal}
               type="button"
-              className="px-6 py-4 border border-[var(--rule-bold)] text-[var(--ink-primary)] hover:border-[#FF4D1F] hover:text-[#FF4D1F] transition-colors font-mono uppercase tracking-wider text-xs flex items-center gap-2 cursor-pointer"
+              className="px-7 py-4 bg-[var(--ink-primary)] text-[var(--bg-canvas)] hover:bg-[#FF4D1F] hover:text-white transition-colors duration-200 text-sm font-semibold tracking-wide flex items-center gap-3 shadow-xl cursor-pointer"
             >
-              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
-              <span>TEST INTERACTIVE TERMINAL</span>
+              <span>Ask About Any Product</span>
+              <span className="font-mono text-xs">→</span>
             </button>
-          </div>
 
-          {/* Technical Metadata Row */}
-          <div className="mt-10 sm:mt-12 pt-6 border-t border-[var(--rule-hairline)] grid grid-cols-2 sm:grid-cols-3 gap-6 font-mono text-xs">
-            <div>
-              <span className="text-[10px] uppercase text-[var(--ink-tertiary)] block mb-1">
-                RETRIEVAL LATENCY
-              </span>
-              <span className="font-bold text-[var(--ink-primary)] text-sm">
-                18ms avg
-              </span>
-            </div>
-            <div>
-              <span className="text-[10px] uppercase text-[var(--ink-tertiary)] block mb-1">
-                HALLUCINATION RATE
-              </span>
-              <span className="font-bold text-[#15803D] dark:text-[#22C55E] text-sm">
-                0.00% (Hard Gate)
-              </span>
-            </div>
-            <div className="col-span-2 sm:col-span-1">
-              <span className="text-[10px] uppercase text-[var(--ink-tertiary)] block mb-1">
-                COMPATIBILITY
-              </span>
-              <span className="font-bold text-[var(--ink-primary)] text-sm">
-                Shopify / SAP / Akeneo
-              </span>
-            </div>
+            <a
+              href="#catalog"
+              className="px-6 py-4 border border-[var(--rule-bold)] text-[var(--ink-primary)] hover:border-[#FF4D1F] hover:text-[#FF4D1F] transition-colors text-sm font-medium tracking-wide"
+            >
+              Browse Catalog Grid
+            </a>
           </div>
         </div>
 
-        {/* Right Column: Live Interactive Chat Demo Card */}
-        <div className="lg:col-span-5">
-          <div className="border border-[var(--rule-bold)] bg-[var(--bg-surface)] p-5 sm:p-6 shadow-2xl relative">
-            {/* Corner Precision Ticks */}
-            <span className="absolute -top-1.5 -left-1.5 w-3 h-3 border-t-2 border-l-2 border-[#FF4D1F]" />
-            <span className="absolute -bottom-1.5 -right-1.5 w-3 h-3 border-b-2 border-r-2 border-[#FF4D1F]" />
-
-            {/* Instrument Header */}
-            <div className="flex items-center justify-between border-b border-[var(--rule-hairline)] pb-3 mb-4 font-mono text-[11px]">
+        {/* Right Column: Hero Interactive Chat Preview Card */}
+        <div className="lg:col-span-5 flex flex-col justify-center">
+          <div
+            ref={chatCardRef}
+            className="w-full bg-[var(--bg-surface)] border border-[var(--rule-bold)] shadow-2xl p-5 sm:p-6 rounded-2xl relative overflow-hidden"
+          >
+            {/* Card Header */}
+            <div className="flex items-center justify-between border-b border-[var(--rule-hairline)] pb-4 mb-4 font-mono text-xs">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="font-bold text-[var(--ink-primary)] uppercase">
-                  LIVE BENCHMARK
+                <span className="font-semibold text-[var(--ink-primary)]">
+                  Live Catalog Assistant
                 </span>
               </div>
-              <span className="text-[var(--ink-tertiary)]">
-                STREAM: DETERMINISTIC
+              <span className="text-[10px] text-[var(--ink-tertiary)] uppercase tracking-wider">
+                100% Grounded
               </span>
             </div>
 
-            {/* Suggested Question Chips */}
-            <div className="mb-4">
-              <div className="text-[10px] font-mono uppercase text-[var(--ink-tertiary)] mb-2">
-                TEST PRE-CALIBRATED QUERIES:
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {HERO_SUGGESTIONS.map((sug, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleChipSelect(sug)}
-                    type="button"
-                    className={`px-2.5 py-1 text-xs font-mono border transition-all cursor-pointer ${
-                      activeQuery === sug
-                        ? "border-[#FF4D1F] bg-[#FF4D1F] text-white font-bold"
-                        : "border-[var(--rule-hairline)] bg-[var(--bg-canvas)] text-[var(--ink-secondary)] hover:border-[var(--ink-primary)]"
-                    }`}
-                  >
-                    {sug}
-                  </button>
-                ))}
-              </div>
+            {/* Interactive Query Chips */}
+            <div className="flex flex-wrap gap-1.5 mb-4">
+              {HERO_SUGGESTIONS.map((item, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setActiveIdx(idx)}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition-all cursor-pointer ${
+                    activeIdx === idx
+                      ? "bg-[var(--ink-primary)] text-[var(--bg-canvas)] border-[var(--ink-primary)]"
+                      : "bg-[var(--bg-canvas)] border-[var(--rule-hairline)] text-[var(--ink-secondary)] hover:border-[var(--ink-primary)]"
+                  }`}
+                >
+                  {item.q}
+                </button>
+              ))}
             </div>
 
-            {/* Live Terminal Output Box */}
-            <div className="min-h-[260px] bg-[var(--bg-canvas)] border border-[var(--rule-hairline)] p-4 flex flex-col justify-between font-mono text-xs">
-              <div>
-                <div className="flex items-center justify-between text-[10px] text-[var(--ink-tertiary)] uppercase border-b border-[var(--rule-hairline)] pb-2 mb-3">
-                  <span>INPUT: {activeQuery}</span>
-                  <span className="text-[#FF4D1F] font-bold">
-                    {displayedAnswer.latencyMs}ms
-                  </span>
+            {/* Simulated Query & Answer */}
+            <div className="space-y-3 font-sans text-xs sm:text-sm">
+              <div className="flex justify-end">
+                <div className="bg-[var(--ink-primary)] text-[var(--bg-canvas)] px-3.5 py-2.5 rounded-xl rounded-br-xs max-w-[85%]">
+                  {HERO_SUGGESTIONS[activeIdx].q}
                 </div>
-
-                {isTyping ? (
-                  <div className="flex items-center gap-2 py-8 text-[var(--ink-tertiary)]">
-                    <span className="w-2 h-2 bg-[#FF4D1F] animate-ping" />
-                    <span>TRAVERSING MASTER PRODUCT GRAPH...</span>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="text-[11px] font-bold text-[var(--ink-primary)] mb-2 uppercase tracking-wide">
-                      {displayedAnswer.headline}
-                    </div>
-                    <div className="text-[11px] font-sans text-[var(--ink-secondary)] leading-relaxed whitespace-pre-wrap">
-                      {displayedAnswer.text}
-                    </div>
-                  </div>
-                )}
               </div>
 
-              {/* Bottom Spec Badge */}
-              <div className="mt-4 pt-3 border-t border-[var(--rule-hairline)] flex items-center justify-between text-[10px] text-[var(--ink-tertiary)]">
-                <span>INDEXED ENTITIES: 42,910</span>
-                <span className="text-emerald-600 font-bold">
-                  VERIFIED ACCURACY: 99.98%
-                </span>
+              <div className="flex justify-start">
+                <div className="bg-[var(--bg-canvas)] border border-[var(--rule-hairline)] text-[var(--ink-primary)] p-3.5 rounded-xl rounded-bl-xs leading-relaxed max-w-[95%]">
+                  <p>{HERO_SUGGESTIONS[activeIdx].a}</p>
+                  <div className="mt-2.5 pt-2 border-t border-[var(--rule-hairline)] flex items-center justify-between text-[11px] font-mono text-[var(--ink-tertiary)]">
+                    <span className="text-emerald-600 font-medium">✓ Verified from Catalog</span>
+                    <button
+                      onClick={onOpenTerminal}
+                      type="button"
+                      className="text-[#FF4D1F] hover:underline font-medium"
+                    >
+                      Try live chat →
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Bottom Scroll Cue */}
-      <div className="max-w-[1920px] mx-auto w-full px-4 sm:px-6 md:px-10 mt-8 pt-4 border-t border-[var(--rule-hairline)] flex items-center justify-between text-[11px] font-mono text-[var(--ink-tertiary)]">
-        <div className="flex items-center gap-2">
-          <span className="w-1.5 h-1.5 bg-[#FF4D1F]" />
-          <span>SCROLL FOR SECTION 02: DIRTY DATA → CRYSTAL ANSWER</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <span>COORDINATES: [001 / HERO]</span>
-          <span className="animate-bounce">↓</span>
         </div>
       </div>
     </section>

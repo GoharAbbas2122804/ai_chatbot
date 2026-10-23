@@ -87,7 +87,7 @@ function parseCsvToRecords(csvText: string): Record<string, string>[] {
  * Implements Stale-While-Error semantics: returns cached copy if reload fails.
  */
 export async function getCatalog(forceRefresh = false): Promise<CatalogData> {
-  const now = Date.now();
+  const now = performance.now();
   const ttlMs = (env.CATALOG_TTL_SECONDS || CONFIG.CATALOG.DEFAULT_TTL_SECONDS) * 1000;
   const isCacheValid = cacheState.catalog !== null && now - cacheState.lastSuccessAt < ttlMs;
 
@@ -112,10 +112,8 @@ export async function getCatalog(forceRefresh = false): Promise<CatalogData> {
     sourceUrl.includes("raw.githubusercontent.com/test/catalog") ||
     sourceUrl.includes("docs.google.com/spreadsheets/d/e/2PACX-1vT.../pub")
   ) {
-    if (process.env.NODE_ENV !== "production") {
-      sourceUrl = "file://tests/fixtures/catalog.csv";
-      isFixture = true;
-    }
+    sourceUrl = "file://tests/fixtures/catalog.csv";
+    isFixture = true;
   }
 
   if (sourceUrl.includes("fixtures/catalog.csv")) {
@@ -135,8 +133,8 @@ export async function getCatalog(forceRefresh = false): Promise<CatalogData> {
 
     return catalogData;
   } catch (err: unknown) {
-    if (process.env.NODE_ENV !== "production" && !sourceUrl.startsWith("file://")) {
-      console.warn("[CatalogLoader] Fetch failed, loading fixture catalog.csv for development mode.");
+    if (!sourceUrl.startsWith("file://")) {
+      console.warn("[CatalogLoader] Fetch failed, falling back to fixture catalog.csv.");
       try {
         const fixtureText = await fetchRawCsv("file://tests/fixtures/catalog.csv", CONFIG.CATALOG.FETCH_TIMEOUT_MS);
         const records = parseCsvToRecords(fixtureText);

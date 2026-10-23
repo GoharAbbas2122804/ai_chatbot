@@ -25,7 +25,7 @@ export function StackMarquee() {
 
       {/* Infinite Scrolling Marquee Track */}
       <div className="relative flex overflow-x-hidden border-t border-b border-[var(--rule-hairline)] bg-[var(--bg-canvas)] py-3">
-        <div className="flex shrink-0 animate-[marquee_30s_linear_infinite] motion-reduce:animate-none items-center gap-8 pr-8">
+        <div className="flex shrink-0 animate-[marquee_30s_linear_infinite] hover:[animation-play-state:paused] motion-reduce:animate-none items-center gap-8 pr-8">
           {STACK_ITEMS.map((item, idx) => (
             <div key={`s1-${idx}`} className="flex items-center gap-3">
               <span className="font-serif italic text-lg sm:text-xl text-[var(--ink-primary)] whitespace-nowrap">
@@ -44,7 +44,7 @@ export function StackMarquee() {
 
         <div
           aria-hidden="true"
-          className="flex shrink-0 animate-[marquee_30s_linear_infinite] motion-reduce:animate-none items-center gap-8 pr-8"
+          className="flex shrink-0 animate-[marquee_30s_linear_infinite] hover:[animation-play-state:paused] motion-reduce:animate-none items-center gap-8 pr-8"
         >
           {STACK_ITEMS.map((item, idx) => (
             <div key={`s2-${idx}`} className="flex items-center gap-3">

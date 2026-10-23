@@ -7,11 +7,18 @@
 
 ## 2. LLM Model and AI Gateway Integration
 - **Prompt Reference**: Model referenced via `env.LLM_MODEL` as an AI Gateway `"provider/model"` string.
-- **Decision**: We use `@ai-sdk/openai` configured with `baseURL: env.AI_GATEWAY_BASE_URL || "https://ai-gateway.vercel.sh/v1"` (or custom gateway URL) and `apiKey: env.AI_GATEWAY_API_KEY`. It passes the `provider/model` string directly. If AI Gateway returns a 403 (e.g., restricted model on free tier) or 429 (rate limit), it retries once with `env.LLM_FALLBACK_MODEL` before failing gracefully with a 503 response.
+- **Decision**: We use `@ai-sdk/openai` configured with `baseURL: env.AI_GATEWAY_BASE_URL || "https://ai-gateway.vercel.sh/v1"` and `apiKey: env.AI_GATEWAY_API_KEY`. It passes the `provider/model` string directly. If AI Gateway returns a 403 (restricted model on free tier) or 429 (rate limit), it retries once with `env.LLM_FALLBACK_MODEL` before failing gracefully with a 503 response.
 
-## 3. Zod Version
-- **Installed Version**: `zod@4.6.7`.
-- **Decision**: All schemas use canonical Zod types (`z.object`, `z.string`, `z.number`, `z.enum`, etc.) compatible with TypeScript strict mode and zero warnings.
+## 3. Support for Reasoning Models (`nvidia/nemotron-3.5-lightning-free`)
+- **Discovery**: Nemotron models emit internal reasoning/thinking tokens that count against the completion token quota. With default `maxTokens: 400`, the thinking tokens exhausted the limit before content generation could occur, producing empty strings.
+- **Decision**: Increased `MAX_OUTPUT_TOKENS` to `2048` in `lib/config.ts`. This affords ~300-800 tokens for internal reasoning while leaving 1200+ tokens for full catalog answers, sustaining rapid 2-4 second response times.
 
 ## 4. Single Configuration Source of Truth
 - **Decision**: Every configurable threshold, timing constant, rate limit, and model parameter is consolidated strictly into `lib/config.ts`.
+
+## 5. Animation & Motion Ownership
+- **Decision**: GSAP 3 owns page-level scroll motion, parallax, SplitText masked reveals, pinned storytelling scrubbing, and count-up numbers. Lenis smooth scrolling is synchronized into GSAP's ticker via `gsap.ticker.add((time) => lenis.raf(time * 1000))` with `autoRaf: false`. Motion (Framer Motion) exclusively owns localized UI micro-interactions (spring chat widget launcher and message transitions).
+- **Safety**: `html.js` class is injected in `<head>` to prevent SSR flash of unstyled/hidden content. A 3-second safety net timer falls back to `html.motion-failed` in case of script blocking.
+
+## 6. Minimal, Clean Chat Widget Interface
+- **Decision**: Stripped pseudo-tech jargon (such as "OPERATOR", "LAYER 03", redundant technical badges) in favor of a clean, minimalist chat interface with subtle SKU badge highlighting, clear reset action, discrete copy button with checkmark feedback, 3-dot wave loading indicator, and responsive drawer on mobile.

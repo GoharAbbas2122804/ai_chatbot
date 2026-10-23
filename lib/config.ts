@@ -47,7 +47,7 @@ export const CONFIG = {
   // Guardrail L5: LLM Generation Parameters
   L5: {
     TEMPERATURE: 0,
-    MAX_OUTPUT_TOKENS: 400,
+    MAX_OUTPUT_TOKENS: 2048,
     TIMEOUT_MS: 20_000,
     HISTORY_TURNS_FOR_PROMPT: 4,
   },

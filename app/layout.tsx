@@ -42,6 +42,8 @@ export const viewport: Viewport = {
   themeColor: "#F2EFE8",
 };
 
+import { SmoothScrollProvider } from "@/components/SmoothScroll";
+
 export default function RootLayout({
   children,
 }: {
@@ -52,8 +54,23 @@ export default function RootLayout({
       lang="en"
       className={`${instrumentSerif.variable} ${geistSans.variable} ${jetbrainsMono.variable} antialiased selection:bg-[#FF4D1F] selection:text-white`}
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              document.documentElement.classList.add('js');
+              window.__motionReady = false;
+              setTimeout(function() {
+                if (!window.__motionReady) {
+                  document.documentElement.classList.add('motion-failed');
+                }
+              }, 3000);
+            `,
+          }}
+        />
+      </head>
       <body className="min-h-screen flex flex-col bg-[var(--bg-canvas)] text-[var(--ink-primary)] font-sans antialiased">
-        {children}
+        <SmoothScrollProvider>{children}</SmoothScrollProvider>
       </body>
     </html>
   );

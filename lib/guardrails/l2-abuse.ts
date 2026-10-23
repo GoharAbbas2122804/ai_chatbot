@@ -105,22 +105,11 @@ export async function checkRateLimit(req: Request): Promise<RateLimitCheckResult
   const clientIp = extractClientIp(req);
   const ipKey = hashIp(clientIp);
 
-  // Production check: If Upstash is not configured in production, fail closed
+  // If Upstash is not configured, fall back to in-memory sliding window limiter
   if (!minuteLimiter || !dayLimiter || !globalDailyLimiter) {
-    if (env.NODE_ENV === "production") {
-      console.error(
-        "[L2 Abuse Control] CRITICAL: Upstash Redis is not configured in production. Failing closed."
-      );
-      return {
-        success: false,
-        reason: "UPSTASH_CONFIG_MISSING",
-        retryAfterSeconds: 60,
-      };
-    }
-
-    // Development / Test in-memory fallback
+    // Development / Local in-memory fallback
     console.warn(
-      "[L2 Abuse Control] Warning: Using in-memory rate limiter fallback (development only)."
+      "[L2 Abuse Control] Notice: Upstash Redis is not configured. Active with in-memory rate limiter fallback."
     );
 
     // Global daily cap check

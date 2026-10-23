@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { useInView, useReducedMotion } from "motion/react";
+import { useRef } from "react";
+import { useGSAP } from "@gsap/react";
+import { gsap } from "@/lib/gsap";
 
 /**
  * EDITABLE PROOF STATS PLACEHOLDERS
@@ -15,6 +16,7 @@ export const PROOF_STATS_CONFIG = [
     label: "Query Precision Rate",
     detail: "Evaluated against 2.4M multi-SKU lookups against live ERP ground truth.",
     instrumentRef: "CAL/ISO-998",
+    decimals: 2,
   },
   {
     id: "STAT_MEAN_LATENCY",
@@ -23,6 +25,7 @@ export const PROOF_STATS_CONFIG = [
     label: "Mean Retrieval Latency",
     detail: "Sub-20ms hybrid vector and BM25 indexing with zero LLM cache overhead.",
     instrumentRef: "TIMING/SUB-20",
+    decimals: 0,
   },
   {
     id: "STAT_HALLUCINATION_RATE",
@@ -31,6 +34,7 @@ export const PROOF_STATS_CONFIG = [
     label: "Hallucination Tolerance",
     detail: "Hard-schema gate ensures answers only contain verified catalog entities.",
     instrumentRef: "GATE/HARD-SCHEMA",
+    decimals: 1,
   },
   {
     id: "STAT_ANSWERS_SERVED",
@@ -39,67 +43,58 @@ export const PROOF_STATS_CONFIG = [
     label: "Deterministic Answers Served",
     detail: "Active production volume across industrial optics, electronics, and aerospace.",
     instrumentRef: "VOL/ANNUAL-PROD",
+    decimals: 1,
   },
 ];
 
-function AnimatedCounter({
-  target,
-  suffix,
-  decimals = 2,
-}: {
-  target: number;
-  suffix: string;
-  decimals?: number;
-}) {
-  const [value, setValue] = useState(0);
-  const ref = useRef<HTMLSpanElement>(null);
-  const isInView = useInView(ref, { once: true, amount: 0.4 });
-  const shouldReduceMotion = useReducedMotion();
-
-  useEffect(() => {
-    if (!isInView) return;
-    if (shouldReduceMotion) {
-      const rafId = requestAnimationFrame(() => setValue(target));
-      return () => cancelAnimationFrame(rafId);
-    }
-
-    const duration = 1600; // ms
-    const startTime = performance.now();
-
-    const frame = (now: number) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(1, elapsed / duration);
-      // Snappy cubic ease-out
-      const ease = 1 - Math.pow(1 - progress, 3);
-      setValue(target * ease);
-
-      if (progress < 1) {
-        requestAnimationFrame(frame);
-      } else {
-        setValue(target);
-      }
-    };
-
-    requestAnimationFrame(frame);
-  }, [isInView, target, shouldReduceMotion]);
-
-  const formatted =
-    decimals === 0
-      ? Math.round(value).toString()
-      : value.toFixed(decimals);
-
-  return (
-    <span ref={ref} className="tabular-nums font-mono">
-      {formatted}
-      <span className="text-[#FF4D1F] font-sans ml-0.5">{suffix}</span>
-    </span>
-  );
-}
-
 export function ProofStats() {
+  const containerRef = useRef<HTMLElement>(null);
+  const numberRefs = useRef<(HTMLSpanElement | null)[]>([]);
+
+  useGSAP(
+    () => {
+      const isReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      PROOF_STATS_CONFIG.forEach((stat, idx) => {
+        const el = numberRefs.current[idx];
+        if (!el) return;
+
+        if (isReduced) {
+          el.innerText =
+            stat.decimals === 0
+              ? Math.round(stat.numericTarget).toString()
+              : stat.numericTarget.toFixed(stat.decimals);
+          return;
+        }
+
+        const counterObj = { val: 0 };
+        gsap.to(counterObj, {
+          val: stat.numericTarget,
+          duration: 1.8,
+          ease: "power2.out",
+          scrollTrigger: {
+            trigger: el,
+            start: "top 85%",
+            once: true,
+          },
+          onUpdate: () => {
+            if (el) {
+              el.innerText =
+                stat.decimals === 0
+                  ? Math.round(counterObj.val).toString()
+                  : counterObj.val.toFixed(stat.decimals);
+            }
+          },
+        });
+      });
+    },
+    { scope: containerRef }
+  );
+
   return (
     <section
       id="proof"
+      ref={containerRef}
       className="relative border-b border-[var(--rule-hairline)] bg-[var(--bg-canvas)] py-20 sm:py-32 overflow-hidden"
     >
       <div className="max-w-[1920px] mx-auto px-4 sm:px-6 md:px-10">
@@ -125,7 +120,7 @@ export function ProofStats() {
 
         {/* 4-Stat Editorial Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 border-t border-l border-[var(--rule-hairline)] bg-[var(--bg-canvas)]">
-          {PROOF_STATS_CONFIG.map((stat) => (
+          {PROOF_STATS_CONFIG.map((stat, idx) => (
             <div
               key={stat.id}
               className="border-r border-b border-[var(--rule-hairline)] p-6 sm:p-8 flex flex-col justify-between hover:bg-[var(--bg-surface)] transition-colors duration-200"
@@ -139,19 +134,16 @@ export function ProofStats() {
                   </span>
                 </div>
 
-                {/* Number with Count-Up */}
-                <div className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tighter text-[var(--ink-primary)] mb-4">
-                  <AnimatedCounter
-                    target={stat.numericTarget}
-                    suffix={stat.suffix}
-                    decimals={
-                      stat.id === "STAT_MEAN_LATENCY"
-                        ? 0
-                        : stat.id === "STAT_ANSWERS_SERVED"
-                        ? 1
-                        : 2
-                    }
-                  />
+                {/* Number with GSAP Count-Up */}
+                <div className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tighter text-[var(--ink-primary)] mb-4 tabular-nums font-mono">
+                  <span
+                    ref={(el) => {
+                      numberRefs.current[idx] = el;
+                    }}
+                  >
+                    0
+                  </span>
+                  <span className="text-[#FF4D1F] font-sans ml-0.5">{stat.suffix}</span>
                 </div>
 
                 {/* Label */}

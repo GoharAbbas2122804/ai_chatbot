@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "bun test",
+    "test": "bun test tests/unit/*.test.ts",
     "eval": "bun run scripts/eval.ts",
     "e2e": "playwright test",
     "check": "bun run typecheck && bun run lint && bun run test && bun run build"

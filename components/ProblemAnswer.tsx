@@ -1,295 +1,180 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { useScroll, useTransform, useReducedMotion } from "motion/react";
+import { useRef } from "react";
+import { gsap, useGSAP } from "@/lib/gsap";
 
 export function ProblemAnswer() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const shouldReduceMotion = useReducedMotion();
-  const [sliderProgress, setSliderProgress] = useState(0.5); // 0 = raw spreadsheet, 1 = verified answer
+  const containerRef = useRef<HTMLElement>(null);
+  const rawCardRef = useRef<HTMLDivElement>(null);
+  const arrowRef = useRef<HTMLDivElement>(null);
+  const verifiedCardRef = useRef<HTMLDivElement>(null);
 
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ["start end", "end start"],
-  });
+  useGSAP(
+    () => {
+      if (!containerRef.current) return;
 
-  const scrollTransform = useTransform(scrollYProgress, [0.25, 0.65], [0, 1]);
+      const mm = gsap.matchMedia();
 
-  useEffect(() => {
-    if (shouldReduceMotion) return;
-    const unsubscribe = scrollTransform.on("change", (latest) => {
-      setSliderProgress(Math.max(0, Math.min(1, latest)));
-    });
-    return () => unsubscribe();
-  }, [scrollTransform, shouldReduceMotion]);
+      // Desktop: Pinned scrub timeline from "customer question" to "validated answer"
+      mm.add("(min-width: 1024px)", () => {
+        const tl = gsap.timeline({
+          scrollTrigger: {
+            trigger: containerRef.current,
+            pin: true,
+            anticipatePin: 1,
+            scrub: 1,
+            start: "top top",
+            end: "+=800",
+          },
+        });
+
+        tl.to(rawCardRef.current, {
+          autoAlpha: 0.35,
+          scale: 0.96,
+          duration: 1,
+        })
+          .to(
+            arrowRef.current,
+            {
+              scale: 1.25,
+              color: "#FF4D1F",
+              duration: 0.8,
+            },
+            "<0.2"
+          )
+          .fromTo(
+            verifiedCardRef.current,
+            { autoAlpha: 0.2, y: 30, scale: 0.95 },
+            { autoAlpha: 1, y: 0, scale: 1, duration: 1 },
+            "-=0.4"
+          )
+          .to(".story-sku-chip", {
+            backgroundColor: "#FF4D1F",
+            color: "#FFFFFF",
+            borderColor: "#FF4D1F",
+            stagger: 0.15,
+            duration: 0.5,
+          });
+      });
+
+      // Mobile: Simple stacked reveal
+      mm.add("(max-width: 1023px)", () => {
+        gsap.from([rawCardRef.current, verifiedCardRef.current], {
+          y: 40,
+          autoAlpha: 0,
+          stagger: 0.15,
+          duration: 0.8,
+          ease: "power3.out",
+          scrollTrigger: {
+            trigger: containerRef.current,
+            start: "top 80%",
+            once: true,
+          },
+        });
+      });
+    },
+    { scope: containerRef }
+  );
 
   return (
     <section
       id="problem-answer"
       ref={containerRef}
-      className="relative border-b border-[var(--rule-hairline)] bg-[var(--bg-canvas)] py-20 sm:py-32 overflow-hidden"
+      className="relative border-b border-[var(--rule-hairline)] bg-[var(--bg-canvas)] py-20 lg:py-28 overflow-hidden min-h-screen flex flex-col justify-center"
     >
-      <div className="max-w-[1920px] mx-auto px-4 sm:px-6 md:px-10">
+      <div className="max-w-[1920px] mx-auto px-4 sm:px-6 md:px-10 w-full">
         {/* Section Header */}
-        <div className="mb-12 sm:mb-16 max-w-4xl">
+        <div className="mb-12 max-w-3xl">
           <div className="inline-flex items-center gap-2 text-xs font-mono tracking-widest uppercase text-[#FF4D1F] mb-3">
             <span className="w-3 h-[1px] bg-[#FF4D1F]" />
-            <span>THE REALITY OF ENTERPRISE COMMERCE</span>
+            <span>HOW IT WORKS: PINNED STORYTELLING</span>
           </div>
-          <h2 className="text-3xl sm:text-5xl lg:text-6xl font-sans font-bold tracking-tight text-[var(--ink-primary)] mb-6">
-            Your catalog is dirty.{" "}
+          <h2 className="text-3xl sm:text-5xl font-sans font-bold tracking-tight text-[var(--ink-primary)] mb-4">
+            From messy catalog entropy to{" "}
             <span className="font-serif italic font-normal text-[#FF4D1F]">
-              Your answers cannot be.
+              verified precision.
             </span>
           </h2>
-          <p className="text-base sm:text-lg text-[var(--ink-secondary)] leading-relaxed font-sans max-w-3xl">
-            Legacy spreadsheets, fragmented ERP exports, contradictory PIM
-            fields, and manual distributor notes make traditional LLMs
-            hallucinate catastrophically. INDEX resolves messy catalog entropy
-            into mathematically grounded, deterministic answers.
+          <p className="text-base text-[var(--ink-secondary)] leading-relaxed font-sans">
+            Generic LLMs guess and hallucinate when facing complex technical tables.
+            INDEX grounds every token deterministically against verified SKU entities.
           </p>
         </div>
 
-        {/* Interactive Scrub Bar / Status Indicator */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4 font-mono text-xs border-b border-[var(--rule-hairline)] pb-4">
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] text-[var(--ink-tertiary)] uppercase">
-              TRANSFORMATION STAGE:
-            </span>
-            <span
-              className={`font-bold uppercase ${
-                sliderProgress < 0.4
-                  ? "text-red-500"
-                  : sliderProgress > 0.8
-                  ? "text-emerald-600"
-                  : "text-amber-500"
-              }`}
-            >
-              {sliderProgress < 0.4
-                ? "STAGE 01: RAW SPREADSHEET ENTROPY"
-                : sliderProgress > 0.8
-                ? "STAGE 03: CRYSTALLINE VERIFIED ANSWER"
-                : "STAGE 02: ACTIVE RECONCILIATION & SCHEMA ENFORCEMENT"}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] text-[var(--ink-tertiary)] uppercase">
-              MANUAL REVEAL:
-            </span>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={sliderProgress}
-              onChange={(e) => setSliderProgress(parseFloat(e.target.value))}
-              aria-label="Scrub transformation from messy spreadsheet to verified answer"
-              className="accent-[#FF4D1F] w-36 cursor-pointer"
-            />
-            <span className="font-bold text-[var(--ink-primary)]">
-              {Math.round(sliderProgress * 100)}%
-            </span>
-          </div>
-        </div>
-
-        {/* Side-by-Side or Overlay Morph Display */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
-          {/* Left: Messy Spreadsheet Panel (Fades/Reduces as progress increases) */}
+        {/* Storytelling Visual Track */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-center">
+          {/* Step 1: Customer Question & Raw Catalog Match */}
           <div
-            className="lg:col-span-6 border border-[var(--rule-hairline)] bg-[var(--bg-surface)] p-5 sm:p-6 flex flex-col justify-between transition-all duration-300 relative"
-            style={{
-              opacity: 1 - sliderProgress * 0.4,
-              borderColor:
-                sliderProgress < 0.5 ? "rgba(239, 68, 68, 0.4)" : undefined,
-            }}
+            ref={rawCardRef}
+            className="lg:col-span-5 bg-[var(--bg-surface)] border border-[var(--rule-hairline)] p-6 rounded-2xl shadow-md"
           >
-            <div>
-              <div className="flex items-center justify-between border-b border-[var(--rule-hairline)] pb-3 mb-4 font-mono text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 bg-red-500" />
-                  <span className="font-bold text-[var(--ink-primary)] uppercase">
-                    INPUT: UNSTRUCTURED RAW SPREADSHEET (3 REVISIONS)
-                  </span>
-                </div>
-                <span className="text-red-500 text-[10px] uppercase font-bold">
-                  CONTRADICTION DETECTED
-                </span>
-              </div>
-
-              {/* Dirty Spreadsheet Mock Table */}
-              <div className="overflow-x-auto text-[11px] font-mono border border-[var(--rule-hairline)] bg-[var(--bg-canvas)]">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-[var(--rule-hairline)] bg-[var(--bg-subtle)] text-[var(--ink-tertiary)] uppercase">
-                      <th className="p-2 border-r border-[var(--rule-hairline)]">
-                        SKU_RAW
-                      </th>
-                      <th className="p-2 border-r border-[var(--rule-hairline)]">
-                        PRICE_ERP
-                      </th>
-                      <th className="p-2 border-r border-[var(--rule-hairline)]">
-                        WAREHOUSE_STOCK
-                      </th>
-                      <th className="p-2">NOTES_FIELD</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-b border-[var(--rule-hairline)] bg-red-500/5">
-                      <td className="p-2 font-bold text-red-600 border-r border-[var(--rule-hairline)]">
-                        SPEC8820X
-                      </td>
-                      <td className="p-2 border-r border-[var(--rule-hairline)] line-through text-[var(--ink-tertiary)]">
-                        $1,920.00
-                      </td>
-                      <td className="p-2 border-r border-[var(--rule-hairline)] text-red-600 font-bold">
-                        14 (Bay 4)
-                      </td>
-                      <td className="p-2 text-[10px] text-red-600">
-                        Discrepancy: old sheet listed $1,920, SAP says $1,840
-                      </td>
-                    </tr>
-                    <tr className="border-b border-[var(--rule-hairline)]">
-                      <td className="p-2 text-[var(--ink-secondary)] border-r border-[var(--rule-hairline)]">
-                        OPT400-COL
-                      </td>
-                      <td className="p-2 border-r border-[var(--rule-hairline)]">
-                        $2,190.00
-                      </td>
-                      <td className="p-2 border-r border-[var(--rule-hairline)]">
-                        8
-                      </td>
-                      <td className="p-2 text-[10px] text-[var(--ink-tertiary)]">
-                        Missing coating specs in row 481
-                      </td>
-                    </tr>
-                    <tr className="border-b border-[var(--rule-hairline)] bg-amber-500/5">
-                      <td className="p-2 text-amber-600 border-r border-[var(--rule-hairline)]">
-                        ISO_900_DAMP
-                      </td>
-                      <td className="p-2 border-r border-[var(--rule-hairline)]">
-                        $1,280.00
-                      </td>
-                      <td className="p-2 border-r border-[var(--rule-hairline)] text-amber-600 font-bold">
-                        0 (BACKORDER)
-                      </td>
-                      <td className="p-2 text-[10px] text-amber-600">
-                        Lead time says 12 days in US, 4 weeks in EU
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Error Callout */}
-              <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 font-mono text-[11px] text-[var(--ink-secondary)]">
-                <div className="font-bold text-red-600 uppercase mb-1">
-                  WHY STANDARD LLMS FAIL HERE:
-                </div>
-                Unprompted models invent prices when faced with three different
-                numbers, quote obsolete inventory from 2023 backups, and guess
-                hardware compatibility without verifying mechanical mounts.
-              </div>
+            <div className="flex items-center justify-between text-xs font-mono text-[var(--ink-tertiary)] border-b border-[var(--rule-hairline)] pb-3 mb-4">
+              <span className="uppercase tracking-wider">Step 01 / Customer Inquiry</span>
+              <span className="text-[#FF4D1F] font-semibold">Raw Request</span>
             </div>
 
-            <div className="mt-6 pt-3 border-t border-[var(--rule-hairline)] text-[10px] font-mono text-[var(--ink-tertiary)] flex justify-between uppercase">
-              <span>SOURCE: CSV_IMPORT_REV3.XLSX</span>
-              <span>UNCERTAINTY: HIGH</span>
+            <div className="bg-[var(--bg-canvas)] p-3.5 rounded-xl border border-[var(--rule-hairline)] mb-4 text-xs font-sans text-[var(--ink-primary)]">
+              &ldquo;I need a telecentric collimator around 400mm with C-mount under $2,500. What is in stock?&rdquo;
+            </div>
+
+            <div className="text-[11px] font-mono text-[var(--ink-secondary)] space-y-1.5 border-t border-[var(--rule-hairline)] pt-3">
+              <div className="flex justify-between">
+                <span>Database Search:</span>
+                <span className="text-[var(--ink-primary)] font-semibold">BM25 + Semantic</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Candidate SKUs:</span>
+                <span className="text-[var(--ink-primary)] font-semibold">OPT-400, OPT-400-COMPACT</span>
+              </div>
             </div>
           </div>
 
-          {/* Right: Verified Deterministic Output Card (Glows & Highlights as progress increases) */}
+          {/* Central Transformation Indicator */}
           <div
-            className="lg:col-span-6 border bg-[var(--bg-canvas)] p-5 sm:p-6 flex flex-col justify-between transition-all duration-300 shadow-xl relative"
-            style={{
-              borderColor:
-                sliderProgress > 0.5 ? "#FF4D1F" : "var(--rule-hairline)",
-              transform: `scale(${0.98 + sliderProgress * 0.02})`,
-            }}
+            ref={arrowRef}
+            className="lg:col-span-2 flex flex-col items-center justify-center py-2 text-[var(--ink-tertiary)] font-mono text-xs text-center"
           >
-            <div>
-              <div className="flex items-center justify-between border-b border-[var(--rule-hairline)] pb-3 mb-4 font-mono text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 bg-[#FF4D1F]" />
-                  <span className="font-bold text-[var(--ink-primary)] uppercase">
-                    OUTPUT: GROUNDED CUSTOMER DELIVERABLE
-                  </span>
-                </div>
-                <span className="text-emerald-600 font-bold text-[10px] uppercase">
-                  99.98% DETERMINISTIC MATCH
-                </span>
-              </div>
+            <div className="w-10 h-10 rounded-full border border-[var(--rule-bold)] flex items-center justify-center mb-1 bg-[var(--bg-canvas)]">
+              →
+            </div>
+            <span className="text-[10px] uppercase tracking-widest text-[#FF4D1F] font-semibold">
+              Deterministic Gate
+            </span>
+          </div>
 
-              {/* Verified Output Card */}
-              <div className="p-4 sm:p-5 border border-[var(--rule-bold)] bg-[var(--bg-surface)]">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="font-mono text-xs px-2 py-0.5 bg-[#FF4D1F] text-white font-bold tracking-wider uppercase">
-                    SPEC-8820-X
-                  </span>
-                  <span className="text-xs font-mono text-[var(--ink-tertiary)]">
-                    / CHRONOS GONIOMETER
-                  </span>
-                </div>
-
-                <h3 className="text-lg font-serif font-bold text-[var(--ink-primary)] mb-2">
-                  Verified Specification & Purchase Brief
-                </h3>
-
-                <p className="text-xs sm:text-sm font-sans text-[var(--ink-secondary)] leading-relaxed mb-4">
-                  Confirmed through synchronized SAP S/4HANA live inventory and
-                  PIM master catalog. Unit pricing locked at{" "}
-                  <span className="font-mono font-bold text-[var(--ink-primary)] text-sm">
-                    $1,840.00 USD
-                  </span>
-                  .
-                </p>
-
-                {/* Structured Spec Grid */}
-                <div className="grid grid-cols-2 gap-3 text-xs font-mono border-t border-b border-[var(--rule-hairline)] py-3 my-3">
-                  <div>
-                    <span className="text-[10px] text-[var(--ink-tertiary)] uppercase block">
-                      RESOLUTION
-                    </span>
-                    <span className="font-bold text-[var(--ink-primary)]">
-                      0.001 mrad
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-[var(--ink-tertiary)] uppercase block">
-                      ACCURACY
-                    </span>
-                    <span className="font-bold text-[var(--ink-primary)]">
-                      ±0.002° across 360°
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-[var(--ink-tertiary)] uppercase block">
-                      LIVE INVENTORY
-                    </span>
-                    <span className="font-bold text-[#15803D] dark:text-[#22C55E]">
-                      14 Units (Warehouse B)
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-[var(--ink-tertiary)] uppercase block">
-                      LEAD TIME
-                    </span>
-                    <span className="font-bold text-[var(--ink-primary)]">
-                      Same-day dispatch
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 text-[11px] font-mono text-[var(--ink-secondary)]">
-                  <span className="text-[#FF4D1F] font-bold">COMPATIBILITY:</span>
-                  <span>Mount Base MB-300, Stage ST-440</span>
-                </div>
-              </div>
+          {/* Step 2: Validated Answer with Highlighting SKU Chips */}
+          <div
+            ref={verifiedCardRef}
+            className="lg:col-span-5 bg-[var(--bg-surface)] border border-[var(--rule-bold)] p-6 rounded-2xl shadow-xl relative"
+          >
+            <div className="flex items-center justify-between text-xs font-mono text-[var(--ink-tertiary)] border-b border-[var(--rule-hairline)] pb-3 mb-4">
+              <span className="uppercase tracking-wider">Step 02 / Validated Answer</span>
+              <span className="text-emerald-600 font-semibold">0.00% Hallucination</span>
             </div>
 
-            <div className="mt-6 pt-3 border-t border-[var(--rule-hairline)] text-[10px] font-mono text-[var(--ink-tertiary)] flex justify-between uppercase">
-              <span>INDEX VALIDATOR STATUS: ZERO HALLUCINATIONS</span>
-              <span className="text-[#FF4D1F] font-bold">LATENCY: 16ms</span>
+            <div className="bg-[var(--bg-canvas)] p-4 rounded-xl border border-[var(--rule-hairline)] mb-4 text-xs font-sans text-[var(--ink-primary)] leading-relaxed">
+              We have two verified options matching your requirements:
+              <ul className="mt-2 space-y-2">
+                <li>
+                  •{" "}
+                  <span className="story-sku-chip font-mono text-[11px] px-1.5 py-0.5 border border-[var(--rule-bold)] rounded font-semibold transition-colors">
+                    OPT-400
+                  </span>{" "}
+                  (400mm ±0.05%, Standard C-mount) priced at <strong>$2,190.00</strong> with 2-day dispatch.
+                </li>
+                <li>
+                  •{" "}
+                  <span className="story-sku-chip font-mono text-[11px] px-1.5 py-0.5 border border-[var(--rule-bold)] rounded font-semibold transition-colors">
+                    OPT-400-COMPACT
+                  </span>{" "}
+                  priced at <strong>$1,950.00</strong> with 3-day dispatch.
+                </li>
+              </ul>
+            </div>
+
+            <div className="text-[11px] font-mono text-emerald-600 border-t border-[var(--rule-hairline)] pt-3 flex items-center justify-between">
+              <span>✓ All prices and tolerances hard-validated</span>
+              <span className="text-[10px] text-[var(--ink-tertiary)]">18ms</span>
             </div>
           </div>
         </div>
