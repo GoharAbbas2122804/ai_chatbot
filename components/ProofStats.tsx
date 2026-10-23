@@ -59,8 +59,8 @@ function AnimatedCounter({
   useEffect(() => {
     if (!isInView) return;
     if (shouldReduceMotion) {
-      setValue(target);
-      return;
+      const rafId = requestAnimationFrame(() => setValue(target));
+      return () => cancelAnimationFrame(rafId);
     }
 
     const duration = 1600; // ms

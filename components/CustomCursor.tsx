@@ -21,7 +21,9 @@ export function CustomCursor() {
       return;
     }
 
-    setEnabled(true);
+    const rafId = requestAnimationFrame(() => {
+      setEnabled(true);
+    });
 
     const handleMouseMove = (e: MouseEvent) => {
       cursorX.set(e.clientX);
@@ -53,6 +55,7 @@ export function CustomCursor() {
     window.addEventListener("mouseover", handleMouseOver, { passive: true });
 
     return () => {
+      cancelAnimationFrame(rafId);
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mousedown", handleMouseDown);
       window.removeEventListener("mouseup", handleMouseUp);

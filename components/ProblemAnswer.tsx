@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { motion, useScroll, useTransform, useReducedMotion } from "motion/react";
-import { gsap } from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useScroll, useTransform, useReducedMotion } from "motion/react";
 
 export function ProblemAnswer() {
   const containerRef = useRef<HTMLDivElement>(null);

@@ -11,16 +11,19 @@ export function Header({ onOpenWidget }: HeaderProps) {
   const [isDark, setIsDark] = useState<boolean>(false);
 
   useEffect(() => {
-    // Check initial theme
+    // Check initial theme safely without cascading synchronous render
     const savedTheme = localStorage.getItem("index_theme");
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
-      setIsDark(true);
-      document.documentElement.setAttribute("data-theme", "dark");
-    } else {
-      setIsDark(false);
-      document.documentElement.removeAttribute("data-theme");
-    }
+    const initialDark = savedTheme === "dark" || (!savedTheme && prefersDark);
+
+    const rafId = requestAnimationFrame(() => {
+      setIsDark(initialDark);
+      if (initialDark) {
+        document.documentElement.setAttribute("data-theme", "dark");
+      } else {
+        document.documentElement.removeAttribute("data-theme");
+      }
+    });
 
     // Live UTC Clock
     const updateTime = () => {
@@ -33,7 +36,11 @@ export function Header({ onOpenWidget }: HeaderProps) {
 
     updateTime();
     const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearInterval(interval);
+    };
   }, []);
 
   const toggleTheme = () => {

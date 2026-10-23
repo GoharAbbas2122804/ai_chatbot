@@ -1,7 +1,13 @@
 import type { NextConfig } from "next";
 
+const allowedOrigins = (process.env.ALLOWED_EMBED_ORIGINS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const embedFrameAncestors = ["'self'", ...allowedOrigins].join(" ");
+
 const nextConfig: NextConfig = {
-  /* config options here */
   experimental: {
     agentFeedback: true,
   },
@@ -14,6 +20,42 @@ const nextConfig: NextConfig = {
         as: "*.css",
       },
     },
+  },
+  async headers() {
+    return [
+      {
+        // Global security headers for all routes except /embed
+        source: "/((?!embed).*)",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=()",
+          },
+          {
+            key: "Content-Security-Policy",
+            value: "frame-ancestors 'none';",
+          },
+        ],
+      },
+      {
+        // Dedicated security headers for /embed: allow iframe embedding from allowed origins
+        source: "/embed",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=()",
+          },
+          {
+            key: "Content-Security-Policy",
+            value: `frame-ancestors ${embedFrameAncestors};`,
+          },
+        ],
+      },
+    ];
   },
 };
 

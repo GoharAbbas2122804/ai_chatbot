@@ -18,17 +18,17 @@ const DEFAULT_SUGGESTIONS = [
   "Check stock status for ISO-900",
 ];
 
+const TOKEN_REGEX = /(\[[A-Z0-9-]+\]|\b[A-Z]{2,5}-\d{3,4}(?:-[A-Z0-9]+)?\b|\$[\d,]+(?:\.\d{2})?)/g;
+
 // Helper to parse message text into rich SKU chips and mono prices
 function FormattedMessageContent({ text }: { text: string }) {
-  // Regex to match SKU tokens like SPEC-8820-X, OPT-400, etc. or [SKU] or prices like $1,840.00
-  const tokenRegex = /(\[[A-Z0-9-]+\]|\b[A-Z]{2,5}-\d{3,4}(?:-[A-Z0-9]+)?\b|\$[\d,]+(?:\.\d{2})?)/g;
-
   const parts = useMemo(() => {
+    const regex = new RegExp(TOKEN_REGEX);
     const segments: Array<{ type: "text" | "sku" | "price"; value: string }> = [];
     let lastIdx = 0;
     let match: RegExpExecArray | null;
 
-    while ((match = tokenRegex.exec(text)) !== null) {
+    while ((match = regex.exec(text)) !== null) {
       if (match.index > lastIdx) {
         segments.push({
           type: "text",
@@ -41,7 +41,7 @@ function FormattedMessageContent({ text }: { text: string }) {
       } else {
         segments.push({ type: "sku", value: val.replace(/[\[\]]/g, "") });
       }
-      lastIdx = tokenRegex.lastIndex;
+      lastIdx = regex.lastIndex;
     }
 
     if (lastIdx < text.length) {
@@ -89,7 +89,18 @@ export function ChatWidget({
 }: ChatWidgetProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalOpen;
-  const setIsOpen = controlledOnClose ? controlledOnClose : setInternalOpen;
+
+  const handleClose = () => {
+    if (controlledOnClose) {
+      controlledOnClose();
+    } else {
+      setInternalOpen(false);
+    }
+  };
+
+  const handleOpen = () => {
+    setInternalOpen(true);
+  };
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
@@ -117,6 +128,7 @@ export function ChatWidget({
     append,
     setMessages,
   } = useChat({
+    id: "index-catalog-session",
     api: "/api/chat",
     initialMessages,
   });
@@ -214,13 +226,7 @@ export function ChatWidget({
             className="fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-50"
           >
             <button
-              onClick={() => {
-                if (controlledOnClose) {
-                  controlledOnClose();
-                } else {
-                  setInternalOpen(true);
-                }
-              }}
+              onClick={handleOpen}
               type="button"
               aria-label="Open catalog intelligence terminal"
               className="group relative flex items-center gap-3 px-4 py-3 bg-[var(--ink-primary)] text-[var(--bg-canvas)] border border-[var(--rule-bold)] shadow-2xl hover:bg-[#FF4D1F] hover:text-white transition-colors duration-200 cursor-pointer"
@@ -249,10 +255,7 @@ export function ChatWidget({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => {
-                if (controlledOnClose) controlledOnClose();
-                else setInternalOpen(false);
-              }}
+              onClick={handleClose}
               className="fixed inset-0 bg-black/40 backdrop-blur-xs sm:hidden pointer-events-auto"
             />
 
@@ -304,10 +307,7 @@ export function ChatWidget({
             </button>
             {!isEmbedded && (
               <button
-                onClick={() => {
-                  if (controlledOnClose) controlledOnClose();
-                  else setInternalOpen(false);
-                }}
+                onClick={handleClose}
                 type="button"
                 aria-label="Close chat window"
                 className="w-7 h-7 flex items-center justify-center border border-[var(--rule-hairline)] hover:border-[#FF4D1F] hover:text-[#FF4D1F] text-[var(--ink-primary)] transition-colors cursor-pointer"

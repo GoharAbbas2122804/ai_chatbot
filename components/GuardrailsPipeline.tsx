@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { motion, useScroll, useTransform, useReducedMotion } from "motion/react";
 
 interface PipelineStep {
@@ -71,7 +71,6 @@ export function GuardrailsPipeline() {
   const containerRef = useRef<HTMLDivElement>(null);
   const shouldReduceMotion = useReducedMotion();
   const [activeTest, setActiveTest] = useState<"valid" | "invalid">("valid");
-  const [activeStepIndex, setActiveStepIndex] = useState<number>(3); // 3 = all passed for valid, 0 = stopped for invalid
 
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -82,11 +81,6 @@ export function GuardrailsPipeline() {
 
   const runTest = (type: "valid" | "invalid") => {
     setActiveTest(type);
-    if (type === "invalid") {
-      setActiveStepIndex(0); // stops at Input Guard
-    } else {
-      setActiveStepIndex(3); // passes through all
-    }
   };
 
   return (
@@ -201,9 +195,9 @@ export function GuardrailsPipeline() {
                 y2="15"
                 stroke={activeTest === "valid" ? "#15803D" : "#FF4D1F"}
                 strokeWidth="2.5"
-                initial={shouldReduceMotion ? { pathLength: 1 } : { pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                style={{
+                  pathLength: shouldReduceMotion ? 1 : pathProgress,
+                }}
               />
             </svg>
           </div>
@@ -213,7 +207,6 @@ export function GuardrailsPipeline() {
             {PIPELINE_STEPS.map((step, idx) => {
               const isHaltedHere = activeTest === "invalid" && idx === 0;
               const isBlocked = activeTest === "invalid" && idx > 0;
-              const isPassed = activeTest === "valid" || idx === 0;
 
               return (
                 <div

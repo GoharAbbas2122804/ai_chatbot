@@ -106,7 +106,7 @@ export function ClosingCTA({ onOpenTerminal }: ClosingCTAProps) {
               </p>
             </div>
             <div className="text-[10px] uppercase text-[var(--ink-tertiary)] mt-4">
-              © {new Date().getFullYear()} INDEX. ALL SPECIFICATIONS RESERVED.
+              © 2026 INDEX. ALL SPECIFICATIONS RESERVED.
             </div>
           </div>
         </div>
