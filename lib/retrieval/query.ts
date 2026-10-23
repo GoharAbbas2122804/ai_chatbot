@@ -154,7 +154,7 @@ export function parseBudgetFilter(text: string): ParsedQuery["budgetFilter"] {
  * Parses superlative intent (cheapest, most expensive, top end).
  */
 export function parseSuperlative(text: string): "cheapest" | "most_expensive" | undefined {
-  const lower = text.toLowerCase();
+  const lower = text.toLowerCase().replace(/[-_]/g, " ");
   if (
     lower.includes("cheapest") ||
     lower.includes("least expensive") ||
@@ -168,7 +168,8 @@ export function parseSuperlative(text: string): "cheapest" | "most_expensive" | 
     lower.includes("most expensive") ||
     lower.includes("highest price") ||
     lower.includes("top of the line") ||
-    lower.includes("premium option")
+    lower.includes("premium option") ||
+    lower.includes("premium")
   ) {
     return "most_expensive";
   }

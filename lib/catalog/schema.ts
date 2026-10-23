@@ -18,6 +18,7 @@ export interface CatalogData {
   loadedAt: Date;
   count: number;
   columns: string[];
+  isFixture?: boolean;
 }
 
 export const HEADER_ALIASES = {
@@ -165,6 +166,16 @@ export function parseCatalogRows(rawRows: Record<string, string>[], csvText: str
     seenSkus.add(skuKey);
 
     const priceInfo = priceCol ? parsePrice(row[priceCol]) : { numeric: null, display: "N/A" };
+    let priceDisplay = priceInfo.display;
+    if (priceInfo.numeric !== null) {
+      if (priceInfo.display.startsWith("€")) {
+        priceDisplay = `€${priceInfo.numeric.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      } else if (priceInfo.display.startsWith("£")) {
+        priceDisplay = `£${priceInfo.numeric.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      } else if (priceInfo.display.startsWith("$") || !isNaN(Number(priceInfo.display.replace(/,/g, "")))) {
+        priceDisplay = `$${priceInfo.numeric.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      }
+    }
     const category = (categoryCol && row[categoryCol] ? row[categoryCol].trim() : "Uncategorized");
 
     // All other columns preserved as specs
@@ -181,7 +192,7 @@ export function parseCatalogRows(rawRows: Record<string, string>[], csvText: str
       sku: rawSku,
       name: rawName,
       price: priceInfo.numeric,
-      priceDisplay: priceInfo.display,
+      priceDisplay,
       category,
       specs,
       rawRow: row,

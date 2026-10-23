@@ -3,8 +3,6 @@ import crypto from "crypto";
 import { getCatalog } from "@/lib/catalog/loader";
 import { env } from "@/lib/env";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 /**
  * Constant-time comparison to prevent timing attacks on administrative tokens.

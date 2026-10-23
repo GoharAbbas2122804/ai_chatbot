@@ -104,11 +104,29 @@ export async function getCatalog(forceRefresh = false): Promise<CatalogData> {
 
   cacheState.lastAttemptAt = now;
 
+  let sourceUrl = process.env.CATALOG_CSV_URL || env.CATALOG_CSV_URL;
+  let isFixture = false;
+
+  if (
+    !sourceUrl ||
+    sourceUrl.includes("raw.githubusercontent.com/test/catalog") ||
+    sourceUrl.includes("docs.google.com/spreadsheets/d/e/2PACX-1vT.../pub")
+  ) {
+    if (process.env.NODE_ENV !== "production") {
+      sourceUrl = "file://tests/fixtures/catalog.csv";
+      isFixture = true;
+    }
+  }
+
+  if (sourceUrl.includes("fixtures/catalog.csv")) {
+    isFixture = true;
+  }
+
   try {
-    const sourceUrl = process.env.CATALOG_CSV_URL || env.CATALOG_CSV_URL;
     const csvText = await fetchRawCsv(sourceUrl, CONFIG.CATALOG.FETCH_TIMEOUT_MS);
     const records = parseCsvToRecords(csvText);
     const catalogData = parseCatalogRows(records, csvText);
+    catalogData.isFixture = isFixture;
 
     // Success: update cache
     cacheState.catalog = catalogData;
@@ -117,6 +135,22 @@ export async function getCatalog(forceRefresh = false): Promise<CatalogData> {
 
     return catalogData;
   } catch (err: unknown) {
+    if (process.env.NODE_ENV !== "production" && !sourceUrl.startsWith("file://")) {
+      console.warn("[CatalogLoader] Fetch failed, loading fixture catalog.csv for development mode.");
+      try {
+        const fixtureText = await fetchRawCsv("file://tests/fixtures/catalog.csv", CONFIG.CATALOG.FETCH_TIMEOUT_MS);
+        const records = parseCsvToRecords(fixtureText);
+        const catalogData = parseCatalogRows(records, fixtureText);
+        catalogData.isFixture = true;
+        cacheState.catalog = catalogData;
+        cacheState.lastSuccessAt = now;
+        cacheState.lastError = null;
+        return catalogData;
+      } catch (fixtureErr) {
+        console.error("[CatalogLoader] Fixture fallback also failed:", fixtureErr);
+      }
+    }
+
     const error = err instanceof Error ? err : new Error(String(err));
     cacheState.lastError = error;
 

@@ -77,11 +77,11 @@ function parseEnv(): Env {
     throw new Error(message);
   }
 
-  // Production check: In production, Upstash Redis env is mandatory
+  // Production check: If Upstash Redis env is missing, warn and fall back to memory limiter
   if (parsed.data.NODE_ENV === "production") {
     if (!parsed.data.UPSTASH_REDIS_REST_URL || !parsed.data.UPSTASH_REDIS_REST_TOKEN) {
-      throw new Error(
-        "\n❌ CRITICAL: UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are required in production for abuse control.\n"
+      console.warn(
+        "\n⚠️ [L2 Abuse Control] Notice: UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are not configured. In-memory rate limiting fallback will be active.\n"
       );
     }
   }

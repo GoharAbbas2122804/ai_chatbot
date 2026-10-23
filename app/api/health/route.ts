@@ -2,9 +2,6 @@ import { NextResponse } from "next/server";
 import { getCatalog } from "@/lib/catalog/loader";
 import { env } from "@/lib/env";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 export async function GET() {
   try {
     const catalog = await getCatalog(false);
@@ -18,6 +15,8 @@ export async function GET() {
         loadedAt: catalog.loadedAt.toISOString(),
         ageSeconds,
         model: env.LLM_MODEL,
+        mode: catalog.isFixture ? "fixture mode" : "live",
+        fixtureMode: !!catalog.isFixture,
       },
       { status: 200 }
     );

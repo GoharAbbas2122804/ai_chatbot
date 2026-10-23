@@ -9,15 +9,41 @@ import type {
   ChatMessageContext,
 } from "./types";
 
+const STOP_WORDS = new Set([
+  "which",
+  "what",
+  "where",
+  "when",
+  "how",
+  "has",
+  "have",
+  "had",
+  "the",
+  "with",
+  "for",
+  "from",
+  "and",
+  "about",
+  "your",
+  "our",
+  "you",
+  "does",
+  "can",
+  "are",
+  "tell",
+  "show",
+  "give",
+]);
+
 /**
- * Normalizes and stems common English plurals for catalog retrieval.
+ * Normalizes and stems common English plurals for catalog retrieval, filtering stop words.
  */
 function expandSearchTerms(text: string): string {
   const tokens = text
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, " ")
     .split(/\s+/)
-    .filter((t) => t.length > 2);
+    .filter((t) => t.length > 2 && !STOP_WORDS.has(t));
 
   const stemmed = tokens.map((t) => {
     if (t.endsWith("ies")) return t.slice(0, -3) + "y";
@@ -69,21 +95,23 @@ export class MiniSearchRetriever implements Retriever {
       }
     }
 
-    // 4. MiniSearch full-text query with term expansion
+    // 4. MiniSearch full-text query with term expansion (skip if explicit comparison candidates resolved)
     const expandedQuery = expandSearchTerms(queryText);
-    const searchResults = miniSearch.search(expandedQuery || queryText);
-    if (searchResults.length > 0) {
-      topScore = searchResults[0].score;
-    }
-
-    for (const result of searchResults) {
-      const p = skuMap.get(result.id.toUpperCase());
-      if (p && !seenSkus.has(p.sku)) {
-        seenSkus.add(p.sku);
-        candidateProducts.push(p);
+    if (!parsed.isComparison || parsed.comparisonCandidates.length < 2) {
+      const searchResults = miniSearch.search(expandedQuery || queryText);
+      if (searchResults.length > 0) {
+        topScore = searchResults[0].score;
       }
-      if (candidateProducts.length >= CONFIG.RETRIEVAL.TOP_K * 2) {
-        break;
+
+      for (const result of searchResults) {
+        const p = skuMap.get(result.id.toUpperCase());
+        if (p && !seenSkus.has(p.sku)) {
+          seenSkus.add(p.sku);
+          candidateProducts.push(p);
+        }
+        if (candidateProducts.length >= CONFIG.RETRIEVAL.TOP_K * 2) {
+          break;
+        }
       }
     }
 
@@ -110,26 +138,40 @@ export class MiniSearchRetriever implements Retriever {
         });
       }
 
+      // If still empty (e.g. general "Hardware over $3000"), match all catalog products satisfying budget
+      if (budgetMatches.length === 0) {
+        budgetMatches = catalog.products.filter(satisfiesBudget);
+      }
+
       filteredProducts = budgetMatches;
     }
 
     // 6. Apply superlative ordering if requested
     if (parsed.superlative) {
-      const priced = [...filteredProducts].filter((p) => p.price !== null);
+      const candidates = filteredProducts.length > 0 ? filteredProducts : catalog.products;
+      const priced = [...candidates].filter((p) => p.price !== null);
       if (parsed.superlative === "cheapest") {
         priced.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
-        filteredProducts = priced;
+        filteredProducts = priced.slice(0, 1);
       } else if (parsed.superlative === "most_expensive") {
         priced.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
-        filteredProducts = priced;
+        filteredProducts = priced.slice(0, 1);
       }
+    }
+
+    // If explicit comparison between candidate products was requested, constrain strictly to those products
+    if (parsed.isComparison && parsed.comparisonCandidates.length >= 2) {
+      filteredProducts = parsed.comparisonCandidates;
     }
 
     // Slice to maximum TOP_K (never split rows)
     const finalProducts = filteredProducts.slice(0, CONFIG.RETRIEVAL.TOP_K);
 
     // Compute Confidence
-    if (parsed.exactMatchedProducts.length > 0 || parsed.comparisonCandidates.length >= 2) {
+    if (parsed.exactMatchedProducts.length > 0 || (parsed.isComparison && parsed.comparisonCandidates.length >= 2)) {
+      confidence = "exact";
+      topScore = Math.max(topScore, 100);
+    } else if (parsed.superlative && finalProducts.length > 0) {
       confidence = "exact";
       topScore = Math.max(topScore, 100);
     } else if (finalProducts.length > 0 && parsed.budgetFilter) {
@@ -144,7 +186,24 @@ export class MiniSearchRetriever implements Retriever {
     }
 
     const computedFacts = generateComputedFacts(finalProducts, parsed);
-    const resolvedSkus = finalProducts.map((p) => p.sku);
+
+    // Scoped resolved SKUs: only include SKUs actually identified in query or high/exact confidence matches
+    const resolvedSkus: string[] = [];
+    for (const p of parsed.exactMatchedProducts) {
+      if (!resolvedSkus.includes(p.sku)) resolvedSkus.push(p.sku);
+    }
+    for (const p of parsed.comparisonCandidates) {
+      if (!resolvedSkus.includes(p.sku)) resolvedSkus.push(p.sku);
+    }
+    for (const sku of parsed.followUpCandidateSkus) {
+      if (!resolvedSkus.includes(sku)) resolvedSkus.push(sku);
+    }
+
+    if (confidence === "exact" || (confidence === "high" && finalProducts.length > 0)) {
+      for (const p of finalProducts) {
+        if (!resolvedSkus.includes(p.sku)) resolvedSkus.push(p.sku);
+      }
+    }
 
     return {
       products: finalProducts,

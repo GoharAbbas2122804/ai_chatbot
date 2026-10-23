@@ -20,7 +20,7 @@ export const CONFIG = {
     FUZZY: 0.2,
     PREFIX: true,
     SCORE_THRESHOLDS: {
-      HIGH: 12.0,
+      HIGH: 8.0,
       LOW: 3.5,
     },
   },

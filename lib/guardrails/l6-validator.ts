@@ -105,7 +105,8 @@ export function validateLlmOutput(
     const norm = normalizeSku(product.sku);
     if (norm.length >= 2) {
       // Look for the product SKU as a discrete token or normalized substring
-      const skuPattern = new RegExp(`\\b${product.sku.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}\\b`, "i");
+      const escapedSku = product.sku.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+      const skuPattern = new RegExp(`(?<![A-Za-z0-9-])${escapedSku}(?![A-Za-z0-9-])`, "i");
       if (skuPattern.test(outputAnswer)) {
         if (!allowedNormalizedSkus.has(norm)) {
           violations.push(
@@ -117,15 +118,27 @@ export function validateLlmOutput(
     }
   }
 
-  // Also check for fabricated SKU patterns (e.g., ABC-9999) not present anywhere in catalog
+  // Build context corpus from retrieved products and computed facts
+  const contextCorpus = [
+    ...retrievedProducts.map((p) => [p.name, p.priceDisplay, ...Object.values(p.specs)].join(" ")),
+    ...computedFacts,
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  // Also check for fabricated SKU patterns (e.g., ABC-9999) not present anywhere in catalog or retrieved specs
   const catalogNormalizedSkus = new Set(catalog.products.map((p) => normalizeSku(p.sku)));
   const genericSkuRegex = /\b[A-Za-z]{2,5}-\d{3,4}(?:-[A-Za-z0-9]+)?\b/g;
   const genericMatches = outputAnswer.match(genericSkuRegex) || [];
   for (const m of genericMatches) {
     const norm = normalizeSku(m);
     if (!catalogNormalizedSkus.has(norm)) {
-      violations.push(`Fabricated or uncataloged SKU pattern detected: "${m}"`);
-      offendingTokens.push(m);
+      // If token is part of a verified technical specification or compatibility in retrieved records, allow it
+      const isKnownSpec = contextCorpus.includes(m.toLowerCase());
+      if (!isKnownSpec) {
+        violations.push(`Fabricated or uncataloged SKU pattern detected: "${m}"`);
+        offendingTokens.push(m);
+      }
     }
   }
 
@@ -150,14 +163,6 @@ export function validateLlmOutput(
   }
 
   // 4. Validate numbers with units
-  // Build a single search string from retrieved products and computed facts
-  const contextCorpus = [
-    ...retrievedProducts.map((p) => [p.name, p.priceDisplay, ...Object.values(p.specs)].join(" ")),
-    ...computedFacts,
-  ]
-    .join(" ")
-    .toLowerCase();
-
   const unitExpressions = extractNumbersWithUnits(outputAnswer);
   for (const expr of unitExpressions) {
     const cleanExpr = expr.raw.toLowerCase();

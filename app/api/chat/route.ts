@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import { createDataStreamResponse, formatDataStreamPart, type CoreMessage } from "ai";
+import { createDataStreamResponse, formatDataStreamPart, type CoreMessage, type JSONValue } from "ai";
 import { CONFIG } from "@/lib/config";
 import { env } from "@/lib/env";
 import { getCatalog } from "@/lib/catalog/loader";
@@ -15,7 +15,6 @@ import { buildSystemPrompt, formatCatalogContext } from "@/lib/prompt";
 import { validateLlmOutput } from "@/lib/guardrails/l6-validator";
 import { generateCatalogAnswer, LlmServiceError } from "@/lib/llm/client";
 
-export const runtime = "nodejs";
 export const maxDuration = 30;
 
 /**
@@ -70,7 +69,7 @@ function streamValidatedTextResponse(
   fullText: string,
   requestId: string,
   guardOutcome: "ok" | "blocked" | "fallback",
-  metadata?: Record<string, unknown>
+  metadata?: JSONValue
 ) {
   return createDataStreamResponse({
     headers: {
@@ -182,7 +181,7 @@ export async function POST(req: Request) {
 
     return streamValidatedTextResponse(replyText, requestId, guardOutcome, {
       guard: guardOutcome,
-      reason: heuristic.matchedPattern,
+      reason: heuristic.matchedPattern ?? null,
     });
   }
 
@@ -222,7 +221,7 @@ export async function POST(req: Request) {
     return streamValidatedTextResponse(fallbackText, requestId, "fallback", {
       guard: "fallback",
       confidence: retrieval.confidence,
-      reason: gateCheck.reason,
+      reason: gateCheck.reason ?? null,
     });
   }
 
