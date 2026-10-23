@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
   experimental: {
     agentFeedback: true,
   },
+  outputFileTracingIncludes: {
+    "/api/**/*": ["./tests/fixtures/catalog.csv", "./public/catalog.csv"],
+  },
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

@@ -1,0 +1,16 @@
+Item Code,Product Name,MSRP,Category,Resolution,Tolerance,Interface,Operating Temp,Payload or Power,Lead Time,Compatibility
+SPEC-8820-X,Chronos Quartz-Locked Precision Goniometer,"$1,840.00",Angular Optics & Metrology,0.001 mrad,±0.002° across 360°,RS-485 / Encoders,-20°C to +65°C,12.5 kg payload,Same-day dispatch,Mount Base MB-300; Stage ST-440
+OPT-400,Apochromatic Telecentric Collimator 400mm,$2190.00,Optical Assemblies,400mm ±0.05%,< λ/10 @ 632.8nm,Standard C-mount,-10°C to +50°C,f/2.8 / 1.85 kg,2 business days,Sensor Array SA-12
+OPT-450,Super-Apochromatic Telecentric Collimator 450mm PRO,$2850,Optical Assemblies,450mm ±0.02%,< λ/14 @ 632.8nm,Universal C/F-mount,-15°C to +60°C,f/2.4 / 2.10 kg,Same-day dispatch,Sensor Array SA-12; GigE Vision
+SEN-104-B,Differential Capacitive Displacement Transducer,$940.00,Sensors & Metrology,0.05 nm,0.05% F.S. Linearity,Analog 0-10V BNC,0°C to +75°C,±15V DC 65mA,1 business day,Demodulator DEM-02
+MOD-770,Sub-Nanometer Piezo Actuator Module,$3420.00,Nanopositioning,0.1 nm,100 µm stroke ±0.1%,LEMO 4-pin Coaxial,-40°C to +80°C,800 N / 3.2 µF,4 business days,Controller E-610
+ISO-900,Pneumatic Vibration Isolation Breadboard,$1280.00,Damping Systems,6 Hz resonant freq,Flatness ±0.1mm/m²,M6 on 25mm grid,-20°C to +80°C,180 kg max / 44 kg weight,12 business days,Metric lab frames
+OPT-400-COMPACT,Apochromatic Telecentric Collimator 400mm Compact,$1950.00,Optical Assemblies,400mm ±0.1%,< λ/8 @ 632.8nm,Mini C-mount,-5°C to +45°C,f/3.2 / 1.40 kg,3 business days,Sensor Array SA-12
+SPEC-8820-X,Chronos Duplicate SKU Old Row,$1999.00,Legacy Optics,0.01 mrad,±0.01°,RS-232,-10°C to +50°C,10 kg,5 business days,Controller CTRL-1
+LNS-250,UV Fused Silica Plano-Convex Lens 25mm,$145.00,Standard Optics,25.4mm dia,λ/4 @ 546nm,Unmounted,-40°C to +120°C,N/A,Same-day dispatch,Lens Tube LT-25
+LNS-500,UV Fused Silica Plano-Convex Lens 50mm,$280.00,Standard Optics,50.8mm dia,λ/4 @ 546nm,Unmounted,-40°C to +120°C,N/A,Same-day dispatch,Lens Tube LT-50
+MIR-100-BB,Broadband Dielectric Laser Mirror 1 Inch,$190.00,Laser Optics,25.4mm dia,λ/10 @ 633nm,1 inch kinematic mount,-20°C to +80°C,Damage threshold 5 J/cm²,Same-day dispatch,Mount KM-100
+STG-120,Motorized Linear Translation Stage 120mm,$2450.00,Motion Systems,0.1 µm step,Repeatability ±0.5 µm,USB / RS-485,-10°C to +60°C,20 kg horizontal / 24V DC,4 business days,Controller E-610
+DEM-02,Dual-Channel Demodulator Module,$680.00,Signal Processing,100 kHz bandwidth,Gain Drift < 0.01%/°C,SMA Coaxial,0°C to +70°C,12V DC 250mA,1 business day,Transducer SEN-104-B
+MB-300,Heavy-Duty Metrology Mounting Base,$380.00,Mechanical Hardware,N/A,Surface ground ±0.005mm,M6 & M4 pattern,-40°C to +100°C,Cast iron 18 kg,Same-day dispatch,Goniometer SPEC-8820-X
+PROTO-99,Experimental Metrology Prototype Tool,,Uncategorized,0.005 nm,Draft ±5%,USB-C,20°C to +25°C,5V 1A,14 business days,Internal Test Rig
